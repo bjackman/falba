@@ -1,4 +1,4 @@
-package parser
+package parser_test
 
 import (
 	"errors"
@@ -7,16 +7,10 @@ import (
 	"testing"
 
 	"github.com/bjackman/falba/internal/falba"
+	"github.com/bjackman/falba/internal/parser"
+	"github.com/bjackman/falba/internal/test"
 	"github.com/google/go-cmp/cmp"
 )
-
-func mustNewRegexpParser(t *testing.T, pattern string, metricName string, metricType falba.ValueType) *RegexpParser {
-	p, err := NewRegexpParser(pattern, metricName, metricType)
-	if err != nil {
-		t.Fatalf("Failed to construct parser: %v", err)
-	}
-	return p
-}
 
 func fakeArtifact(t *testing.T, content string) *falba.Artifact {
 	path := filepath.Join(t.TempDir(), "artifact")
@@ -33,7 +27,7 @@ func TestParser(t *testing.T) {
 		// Only one match group is allowed.
 		"(foo)(bar)",
 	} {
-		p, err := NewRegexpParser(pattern, "name", falba.ValueInt)
+		p, err := parser.NewRegexpParser(pattern, "name", falba.ValueInt)
 		if err == nil {
 			t.Errorf("Wanted error for regexp pattern %q, got %v", pattern, p)
 		}
@@ -43,29 +37,29 @@ func TestParser(t *testing.T) {
 	for _, tc := range []struct {
 		desc    string
 		content string
-		parser  *RegexpParser
+		parser  *parser.RegexpParser
 	}{
 		{
 			desc:    "empty content",
 			content: "",
-			parser:  mustNewRegexpParser(t, ".+", "my-metric", falba.ValueInt),
+			parser:  test.MustNewRegexpParser(t, ".+", "my-metric", falba.ValueInt),
 		},
 		{
 			desc:    "not int",
 			content: "foo",
-			parser:  mustNewRegexpParser(t, ".+", "my-metric", falba.ValueInt),
+			parser:  test.MustNewRegexpParser(t, ".+", "my-metric", falba.ValueInt),
 		},
 		{
 			desc:    "float not int",
 			content: "1.0",
-			parser:  mustNewRegexpParser(t, ".+", "my-metric", falba.ValueInt),
+			parser:  test.MustNewRegexpParser(t, ".+", "my-metric", falba.ValueInt),
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			result, err := tc.parser.Parse(fakeArtifact(t, tc.content))
 			if err == nil {
 				t.Errorf("Expected error, got none, result = %v", result)
-			} else if !errors.Is(err, ErrParseFailure) {
+			} else if !errors.Is(err, parser.ErrParseFailure) {
 				t.Errorf("Expected ErrParseFailure, got %v", err)
 			}
 		})
@@ -75,37 +69,37 @@ func TestParser(t *testing.T) {
 	for _, tc := range []struct {
 		desc    string
 		content string
-		parser  *RegexpParser
+		parser  *parser.RegexpParser
 		want    *falba.Metric
 	}{
 		{
 			desc:    "int",
 			content: "1",
-			parser:  mustNewRegexpParser(t, ".+", "my-metric", falba.ValueInt),
+			parser:  test.MustNewRegexpParser(t, ".+", "my-metric", falba.ValueInt),
 			want:    &falba.Metric{Name: "my-metric", Value: &falba.IntValue{Value: 1}},
 		},
 		{
 			desc:    "int group",
 			content: "foo 1",
-			parser:  mustNewRegexpParser(t, "foo (\\d+)", "my-metric", falba.ValueInt),
+			parser:  test.MustNewRegexpParser(t, "foo (\\d+)", "my-metric", falba.ValueInt),
 			want:    &falba.Metric{Name: "my-metric", Value: &falba.IntValue{Value: 1}},
 		},
 		{
 			desc:    "float int",
 			content: "1",
-			parser:  mustNewRegexpParser(t, ".+", "my-metric", falba.ValueFloat),
+			parser:  test.MustNewRegexpParser(t, ".+", "my-metric", falba.ValueFloat),
 			want:    &falba.Metric{Name: "my-metric", Value: &falba.FloatValue{Value: 1.0}},
 		},
 		{
 			desc:    "float",
 			content: "1.0",
-			parser:  mustNewRegexpParser(t, ".+", "my-metric", falba.ValueFloat),
+			parser:  test.MustNewRegexpParser(t, ".+", "my-metric", falba.ValueFloat),
 			want:    &falba.Metric{Name: "my-metric", Value: &falba.FloatValue{Value: 1.0}},
 		},
 		{
 			desc:    "string",
 			content: "yerp",
-			parser:  mustNewRegexpParser(t, ".+", "my-metric", falba.ValueString),
+			parser:  test.MustNewRegexpParser(t, ".+", "my-metric", falba.ValueString),
 			want:    &falba.Metric{Name: "my-metric", Value: &falba.StringValue{Value: "yerp"}},
 		},
 	} {

@@ -11,13 +11,13 @@ import (
 
 // ParseResult is just  halper to avoid typing out verbose map and slice biz.
 type ParseResult struct {
-	Facts   map[string]*falba.Value
+	Facts   map[string]falba.Value
 	Metrics []*falba.Metric
 }
 
 func newParseResult() *ParseResult {
 	return &ParseResult{
-		Facts:   map[string]*falba.Value{},
+		Facts:   map[string]falba.Value{},
 		Metrics: []*falba.Metric{},
 	}
 }
@@ -32,6 +32,7 @@ var ErrParseFailure = errors.New("parse failure")
 
 // A Parser is a bundle of logic for extracting information from Artifacts.
 type Parser interface {
+	fmt.Stringer
 	// Parse processes a single Artifact and produces results. If the error
 	// returned Is a ErrParseFailure it just means something is unexpected about
 	// the Artifact contents, otherwise it means something went completely wrong.
@@ -84,4 +85,8 @@ func (p *RegexpParser) Parse(artifact *falba.Artifact) (*ParseResult, error) {
 	}
 
 	return singleMetricResult(p.MetricName, val), nil
+}
+
+func (p *RegexpParser) String() string {
+	return fmt.Sprintf("RegexpParser{%v -> %v(%q)}", p.re, p.MetricType, p.MetricName)
 }
