@@ -42,6 +42,7 @@ type Parser interface {
 // RegexpParser is a parser that uses regexps provided by the user to extract
 // facts and metrics.
 type RegexpParser struct {
+	Name string
 	// Currently this just supports extracting a single metric from an artifact.
 	// The regexp must have zero or one capture groups. If there's a capture
 	// group, the metric is taken from the submatch, otherwise from the match of
@@ -53,7 +54,7 @@ type RegexpParser struct {
 	MetricType falba.ValueType
 }
 
-func NewRegexpParser(pattern string, metricName string, metricType falba.ValueType) (*RegexpParser, error) {
+func NewRegexpParser(name string, pattern string, metricName string, metricType falba.ValueType) (*RegexpParser, error) {
 	re, err := regexp.Compile(pattern)
 	if err != nil {
 		return nil, fmt.Errorf("compiling regexp pattern %q: %v", pattern, err)
@@ -61,7 +62,7 @@ func NewRegexpParser(pattern string, metricName string, metricType falba.ValueTy
 	if re.NumSubexp() > 1 {
 		return nil, fmt.Errorf("regexp %q contained %d sub-expressions, up to 1 is allowed", pattern, re.NumSubexp())
 	}
-	return &RegexpParser{re: re, MetricName: metricName, MetricType: metricType}, nil
+	return &RegexpParser{Name: name, re: re, MetricName: metricName, MetricType: metricType}, nil
 }
 
 func (p *RegexpParser) Parse(artifact *falba.Artifact) (*ParseResult, error) {

@@ -27,7 +27,7 @@ func TestParser(t *testing.T) {
 		// Only one match group is allowed.
 		"(foo)(bar)",
 	} {
-		p, err := parser.NewRegexpParser(pattern, "name", falba.ValueInt)
+		p, err := parser.NewRegexpParser("my-parser", pattern, "name", falba.ValueInt)
 		if err == nil {
 			t.Errorf("Wanted error for regexp pattern %q, got %v", pattern, p)
 		}

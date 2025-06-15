@@ -10,7 +10,7 @@ import (
 )
 
 func MustNewRegexpParser(t *testing.T, pattern string, metricName string, metricType falba.ValueType) *parser.RegexpParser {
-	p, err := parser.NewRegexpParser(pattern, metricName, metricType)
+	p, err := parser.NewRegexpParser("fake", pattern, metricName, metricType)
 	if err != nil {
 		t.Fatalf("Failed to construct parser: %v", err)
 	}
