@@ -77,6 +77,10 @@ func NewParser(name string, artifactPattern string, metricName string, metricTyp
 // but isn't the whole point of this design that, if you think you wanna gather
 // zillions of facts, you are probably wrong? You only need to extract the ones
 // you're actually capable of analysing.
+//
+// Ahhh right, clarity: Yes, we want the flexibility to output _multiple samples
+// of the same metric_. We don't really care about producing multiple different
+// facts or metrics, I think.
 func (p *Parser) Parse(artifact *falba.Artifact) (*ParseResult, error) {
 	if !p.ArtifactRE.MatchString(artifact.Name) {
 		return newParseResult(), nil
