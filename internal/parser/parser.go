@@ -42,29 +42,55 @@ type Parser interface {
 	Parse(artifact *falba.Artifact) (*ParseResult, error)
 }
 
-// RegexpParser is a parser that uses regexps provided by the user to extract
-// facts and metrics.
-type RegexpParser struct {
-	Name       string
+// Common Parser fields.
+// TODO: all these arguments are a mess, this needs to be split up into
+// different layers but it's not entirely clear the best way to do that.
+// (Basically, parserBase should be a proper type exposed to the rest of Falba,
+// but I can't see what the semantics of that type are supposed to be).
+// Something like: there is one type responsible for actually parsing the
+// content of the artifact, and one responsible for mapping the parsed content
+// onto facts and metrics. But I can't quite see how those two types should
+// interact.
+type parserBase struct {
+	Name string
+	// Only produce metrics for artifacts matching this regexp.
 	ArtifactRE *regexp.Regexp
-	// Currently this just supports extracting a single metric from an artifact.
-	// The regexp must have zero or one capture groups. If there's a capture
-	// group, the metric is taken from the submatch, otherwise from the match of
-	// the full regexp.
-	re *regexp.Regexp
 	// The name of the metric that will be produced.
 	MetricName string
 	// The type of the value that will be produced.
 	MetricType falba.ValueType
 }
 
-func NewRegexpParser(name string, artifactPattern string, pattern string, metricName string, metricType falba.ValueType) (*RegexpParser, error) {
+func newParserBase(name string, artifactPattern string, metricName string, metricType falba.ValueType) (*parserBase, error) {
 	artifactRE, err := regexp.Compile(artifactPattern)
 	if err != nil {
-		return nil, fmt.Errorf("compiling artifact regexp pattern %q: %v", pattern, err)
+		return nil, fmt.Errorf("compiling artifact regexp pattern %q: %v", artifactPattern, err)
 	}
-	log.Printf("artifact re: %q -> %v", artifactPattern, artifactRE)
 
+	return &parserBase{
+		Name:       name,
+		ArtifactRE: artifactRE,
+		MetricName: metricName,
+		MetricType: metricType,
+	}, nil
+}
+
+// RegexpParser is a parser that uses regexps provided by the user to extract
+// facts and metrics.
+type RegexpParser struct {
+	parserBase
+	// Currently this just supports extracting a single metric from an artifact.
+	// The regexp must have zero or one capture groups. If there's a capture
+	// group, the metric is taken from the submatch, otherwise from the match of
+	// the full regexp.
+	re *regexp.Regexp
+}
+
+func NewRegexpParser(name string, artifactPattern string, pattern string, metricName string, metricType falba.ValueType) (*RegexpParser, error) {
+	base, err := newParserBase(name, artifactPattern, metricName, metricType)
+	if err != nil {
+		return nil, err
+	}
 	re, err := regexp.Compile(pattern)
 	if err != nil {
 		return nil, fmt.Errorf("compiling regexp pattern %q: %v", pattern, err)
@@ -72,7 +98,10 @@ func NewRegexpParser(name string, artifactPattern string, pattern string, metric
 	if re.NumSubexp() > 1 {
 		return nil, fmt.Errorf("regexp %q contained %d sub-expressions, up to 1 is allowed", pattern, re.NumSubexp())
 	}
-	return &RegexpParser{Name: name, re: re, ArtifactRE: artifactRE, MetricName: metricName, MetricType: metricType}, nil
+	return &RegexpParser{
+		parserBase: *base,
+		re:         re,
+	}, nil
 }
 
 func (p *RegexpParser) Parse(artifact *falba.Artifact) (*ParseResult, error) {
