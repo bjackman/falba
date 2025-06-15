@@ -135,10 +135,8 @@ func (p *RegexpParser) String() string {
 	return fmt.Sprintf("RegexpParser{%v -> %v(%q)}", p.re, p.MetricType, p.MetricName)
 }
 
-// Config for a parser that just reads a single metric from a file, using its
-// entire content.
-type SingleMetricConfig struct {
-	Type string `json:"type"` // Must be "single_metric"
+type BaseParserConfig struct {
+	Type string `json:"type"`
 	// Parse the artifact if its path (relative to the artifacts dir) matches
 	// this regexp.
 	ArtifactRegexp string `json:"artifact_regexp"`
@@ -146,6 +144,12 @@ type SingleMetricConfig struct {
 		Name string `json:"name"`
 		Type string `json:"type"`
 	} `json:"metric"`
+}
+
+// Config for a parser that just reads a single metric from a file, using its
+// entire content.
+type SingleMetricConfig struct {
+	BaseParserConfig
 }
 
 // Read a configuration entry for a single parser and return it.
