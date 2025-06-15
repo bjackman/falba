@@ -2,13 +2,15 @@
 package parser
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"regexp"
 	"strings"
 
+	"github.com/PaesslerAG/gval"
+	"github.com/PaesslerAG/jsonpath"
 	"github.com/bjackman/falba/internal/falba"
 )
 
@@ -108,7 +110,6 @@ func (p *RegexpParser) Parse(artifact *falba.Artifact) (*ParseResult, error) {
 	if !p.ArtifactRE.MatchString(artifact.Name) {
 		return newParseResult(), nil
 	}
-	log.Printf("Artifact %v matched %v", artifact, p.ArtifactRE)
 	content, err := artifact.Content()
 	if err != nil {
 		return nil, fmt.Errorf("getting artifact content: %v", err)
@@ -135,6 +136,66 @@ func (p *RegexpParser) String() string {
 	return fmt.Sprintf("RegexpParser{%v -> %v(%q)}", p.re, p.MetricType, p.MetricName)
 }
 
+type JSONPathParser struct {
+	parserBase
+	selector *gval.Evaluable
+}
+
+func NewJSONPathParser(name string, artifactPattern string, expr string, metricName string, metricType falba.ValueType) (*JSONPathParser, error) {
+	base, err := newParserBase(name, artifactPattern, metricName, metricType)
+	if err != nil {
+		return nil, err
+	}
+	selector, err := jsonpath.New(expr)
+	if err != nil {
+		return nil, fmt.Errorf("parsing JSONPath expression: %v", err)
+	}
+	return &JSONPathParser{
+		parserBase: *base,
+		selector:   &selector,
+	}, nil
+}
+
+func (p *JSONPathParser) Parse(artifact *falba.Artifact) (*ParseResult, error) {
+	if !p.ArtifactRE.MatchString(artifact.Name) {
+		return newParseResult(), nil
+	}
+	content, err := artifact.Content()
+	if err != nil {
+		return nil, fmt.Errorf("getting artifact content: %v", err)
+	}
+	var obj any
+	if err := json.Unmarshal(content, &obj); err != nil {
+		return nil, fmt.Errorf("%w: unmarshalling from JSON: %v", ErrParseFailure, err)
+	}
+	switch p.MetricType {
+	case falba.ValueInt:
+		val, err := p.selector.EvalInt(context.Background(), obj)
+		if err != nil {
+			return nil, fmt.Errorf("%w: evaluating JSONPath as int: %v", ErrParseFailure, err)
+		}
+		return singleMetricResult(p.MetricName, &falba.IntValue{Value: val}), nil
+	case falba.ValueString:
+		val, err := p.selector.EvalString(context.Background(), obj)
+		if err != nil {
+			return nil, fmt.Errorf("%w: evaluating JSONPath as int: %v", ErrParseFailure, err)
+		}
+		return singleMetricResult(p.MetricName, &falba.StringValue{Value: val}), nil
+	case falba.ValueFloat:
+		val, err := p.selector.EvalFloat64(context.Background(), obj)
+		if err != nil {
+			return nil, fmt.Errorf("%w: evaluating JSONPath as int: %v", ErrParseFailure, err)
+		}
+		return singleMetricResult(p.MetricName, &falba.FloatValue{Value: val}), nil
+	default:
+		panic("unimplemented")
+	}
+}
+
+func (p *JSONPathParser) String() string {
+	return fmt.Sprintf("JSONPathParser{%v -> %v(%q)}", p.selector, p.MetricType, p.MetricName)
+}
+
 type BaseParserConfig struct {
 	Type string `json:"type"`
 	// Parse the artifact if its path (relative to the artifacts dir) matches
@@ -144,6 +205,11 @@ type BaseParserConfig struct {
 		Name string `json:"name"`
 		Type string `json:"type"`
 	} `json:"metric"`
+}
+
+type JSONPPathConfig struct {
+	BaseParserConfig
+	JSONPath string `json:"jsonpath"`
 }
 
 // Config for a parser that just reads a single metric from a file, using its
@@ -176,6 +242,18 @@ func FromConfig(rawConfig json.RawMessage, name string) (Parser, error) {
 			return nil, fmt.Errorf("parsing metric type: %v", err)
 		}
 		return NewRegexpParser(name, config.ArtifactRegexp, ".+", config.Metric.Name, t)
+	case "jsonpath":
+		decoder := json.NewDecoder(strings.NewReader(string(rawConfig)))
+		decoder.DisallowUnknownFields()
+		var config JSONPPathConfig
+		if err := decoder.Decode(&config); err != nil {
+			return nil, fmt.Errorf("decoding single_metric parser config: %v", err)
+		}
+		t, err := falba.ParseValueType(config.Metric.Type)
+		if err != nil {
+			return nil, fmt.Errorf("parsing metric type: %v", err)
+		}
+		return NewJSONPathParser(name, config.ArtifactRegexp, config.JSONPath, config.Metric.Name, t)
 	default:
 		return nil, fmt.Errorf("unknown parser type %q", typedConfig.Type)
 	}

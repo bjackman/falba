@@ -15,6 +15,33 @@
                 "name": "my_raw_int",
                 "type": "int"
             }
+        },
+        "jsonpath_int_metric": {
+            "type": "jsonpath",
+            "artifact_regexp": "my_artifact.json",
+            "jsonpath": "my_json_int",
+            "metric": {
+                "name": "my_json_int",
+                "type": "int"
+            }
+        },
+        "jsonpath_string_metric": {
+            "type": "jsonpath",
+            "artifact_regexp": "my_artifact.json",
+            "jsonpath": "obj.my_json_string",
+            "metric": {
+                "name": "my_json_string",
+                "type": "string"
+            }
+        },
+        "jsonpath_float_metric": {
+            "type": "jsonpath",
+            "artifact_regexp": "my_artifact.json",
+            "jsonpath": "obj.my_json_float",
+            "metric": {
+                "name": "my_json_float",
+                "type": "float"
+            }
         }
     }
 }

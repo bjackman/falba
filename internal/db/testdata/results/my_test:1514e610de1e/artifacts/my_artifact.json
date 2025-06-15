@@ -1,0 +1,7 @@
+{
+    "my_json_int": 1,
+    "obj": {
+        "my_json_string": "foo",
+        "my_json_float": 2.0
+    }
+ }
