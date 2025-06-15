@@ -1,0 +1,8 @@
+# https://github.com/bjackman/limmat
+[[tests]]
+name = "format"
+command = "gofmt -l ."
+
+[[tests]]
+name = "test"
+command = "go test ./..."
