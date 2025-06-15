@@ -202,9 +202,37 @@ type BaseParserConfig struct {
 	} `json:"metric"`
 }
 
+// This just checks if the config structure has the right fields, it doesn't
+// check if their content is correct.
+func (c *BaseParserConfig) ValidateFields() error {
+	if c.Type == "" {
+		return fmt.Errorf("missing/empty 'type' field")
+	}
+	if c.ArtifactRegexp == "" {
+		return fmt.Errorf("missing/empty 'artifact_regexp' field")
+	}
+	if c.Metric.Name == "" {
+		return fmt.Errorf("missing/empty 'metric.name' field")
+	}
+	if c.Metric.Type == "" {
+		return fmt.Errorf("missing/empty 'metric.type' field")
+	}
+	return nil
+}
+
 type JSONPPathConfig struct {
 	BaseParserConfig
 	JSONPath string `json:"jsonpath"`
+}
+
+func (c *JSONPPathConfig) ValidateFields() error {
+	if err := c.BaseParserConfig.ValidateFields(); err != nil {
+		return err
+	}
+	if c.JSONPath == "" {
+		return fmt.Errorf("missing/empty 'jsonpath' field")
+	}
+	return nil
 }
 
 // Config for a parser that just reads a single metric from a file, using its
@@ -237,6 +265,9 @@ func FromConfig(rawConfig json.RawMessage, name string) (*Parser, error) {
 		if err := decoder.Decode(&config); err != nil {
 			return nil, fmt.Errorf("decoding single_metric parser config: %v", err)
 		}
+		if err := config.ValidateFields(); err != nil {
+			return nil, fmt.Errorf("invalid %q parser config: %v", baseConfig.Type, err)
+		}
 		var err error
 		extractor, err = NewRegexpExtractor(".+", resultType)
 		if err != nil {
@@ -248,6 +279,9 @@ func FromConfig(rawConfig json.RawMessage, name string) (*Parser, error) {
 		var config JSONPPathConfig
 		if err := decoder.Decode(&config); err != nil {
 			return nil, fmt.Errorf("decoding single_metric parser config: %v", err)
+		}
+		if err := config.ValidateFields(); err != nil {
+			return nil, fmt.Errorf("invalid %q parser config: %v", baseConfig.Type, err)
 		}
 		var err error
 		extractor, err = NewJSONPathExtractor(config.JSONPath, resultType)
