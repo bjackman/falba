@@ -21,6 +21,10 @@ func TestReadDB(t *testing.T) {
 			ResultID: "1514e610de1e",
 			Artifacts: []*falba.Artifact{
 				{
+					Name: "my_raw_fact",
+					Path: test.MustFilepathAbs(t, "testdata/results/my_test:1514e610de1e/artifacts/my_raw_fact"),
+				},
+				{
 					Name: "my_raw_int",
 					Path: test.MustFilepathAbs(t, "testdata/results/my_test:1514e610de1e/artifacts/my_raw_int"),
 				},
@@ -49,6 +53,7 @@ func TestReadDB(t *testing.T) {
 			},
 			Facts: map[string]falba.Value{
 				"my_json_fact": &falba.StringValue{Value: "foo"},
+				"my_raw_fact":  &falba.StringValue{Value: "GDAY MATE"},
 			},
 		},
 	}

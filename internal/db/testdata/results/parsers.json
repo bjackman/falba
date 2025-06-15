@@ -43,6 +43,14 @@
                 "type": "float"
             }
         },
+        "raw_fact": {
+            "type": "single_metric",
+            "artifact_regexp": "my_raw_fact",
+            "fact": {
+                "name": "my_raw_fact",
+                "type": "string"
+            }
+        },
         "jsonpath_fact": {
             "type": "jsonpath",
             "artifact_regexp": "my_artifact.json",

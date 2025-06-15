@@ -69,7 +69,7 @@ type Parser struct {
 	Name string
 	// Only produce metrics for artifacts matching this regexp.
 	ArtifactRE *regexp.Regexp
-	target     *ParserTarget
+	Target     *ParserTarget
 	Extractor
 }
 
@@ -82,7 +82,7 @@ func NewParser(name string, artifactPattern string, target *ParserTarget, extrac
 	return &Parser{
 		Name:       name,
 		ArtifactRE: artifactRE,
-		target:     target,
+		Target:     target,
 		Extractor:  extractor,
 	}, nil
 }
@@ -106,7 +106,7 @@ func (p *Parser) Parse(artifact *falba.Artifact) (*ParseResult, error) {
 		return nil, err
 	}
 	// TODO: Is it OK that we are kinda forgetting the expected type here?
-	return p.target.result(val), nil
+	return p.Target.result(val), nil
 }
 
 // RegexpExtractor is an extractor that uses regexps provided by the user to
@@ -189,7 +189,7 @@ func (e *JSONPathExtractor) Extract(artifact *falba.Artifact) (falba.Value, erro
 		if err != nil {
 			return nil, fmt.Errorf("%w: evaluating JSONPath as int: %v", ErrParseFailure, err)
 		}
-		return &falba.IntValue{Value: val}, nil
+		return &falba.IntValue{Value: int64(val)}, nil
 	case falba.ValueString:
 		val, err := e.selector.EvalString(context.Background(), obj)
 		if err != nil {

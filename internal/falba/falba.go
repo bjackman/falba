@@ -2,6 +2,8 @@
 package falba
 
 import (
+	"database/sql"
+	"database/sql/driver"
 	"fmt"
 	"io"
 	"os"
@@ -77,25 +79,54 @@ func ParseValueType(s string) (ValueType, error) {
 	}
 }
 
+func (t ValueType) SQL() string {
+	switch t {
+	case ValueInt:
+		return "INT64"
+	case ValueFloat:
+		return "FLOAT"
+	case ValueString:
+		return "STRING"
+	default:
+		panic(fmt.Sprintf("unknown value type %d", t))
+	}
+}
+
+// Return a NULL value of this type, prepared for insertion into an SQL table.
+// This is kinda awkward because you cannot have a typed and nil falba Value.
+func (t ValueType) SQLNull() driver.Valuer {
+	switch t {
+	case ValueInt:
+		return sql.NullInt64{}
+	case ValueFloat:
+		return sql.NullFloat64{}
+	case ValueString:
+		return sql.NullString{}
+	default:
+		panic(fmt.Sprintf("unknown value type %d", t))
+	}
+}
+
 // A Value is a value that can be stored as a Fact or a Metric.
 type Value interface {
 	// Type returns the type of the value, telling you which per-type method you
 	// can call. If you call the wrong one you get the zero value.
 	Type() ValueType
-	IntValue() int
+	IntValue() int64
 	FloatValue() float64
 	StringValue() string
+	SQLValue() driver.Valuer
 }
 
 type IntValue struct {
-	Value int
+	Value int64
 }
 
 func (v *IntValue) Type() ValueType {
 	return ValueInt
 }
 
-func (v *IntValue) IntValue() int {
+func (v *IntValue) IntValue() int64 {
 	return v.Value
 }
 
@@ -107,6 +138,10 @@ func (v *IntValue) StringValue() string {
 	return ""
 }
 
+func (v *IntValue) SQLValue() driver.Valuer {
+	return sql.NullInt64{Valid: true, Int64: v.Value}
+}
+
 type FloatValue struct {
 	Value float64
 }
@@ -115,7 +150,7 @@ func (v *FloatValue) Type() ValueType {
 	return ValueFloat
 }
 
-func (v *FloatValue) IntValue() int {
+func (v *FloatValue) IntValue() int64 {
 	return 0
 }
 
@@ -127,6 +162,10 @@ func (v *FloatValue) StringValue() string {
 	return ""
 }
 
+func (v *FloatValue) SQLValue() driver.Valuer {
+	return sql.NullFloat64{Valid: true, Float64: v.Value}
+}
+
 type StringValue struct {
 	Value string
 }
@@ -135,7 +174,7 @@ func (v *StringValue) Type() ValueType {
 	return ValueString
 }
 
-func (v *StringValue) IntValue() int {
+func (v *StringValue) IntValue() int64 {
 	return 0
 }
 
@@ -147,6 +186,10 @@ func (v *StringValue) StringValue() string {
 	return v.Value
 }
 
+func (v *StringValue) SQLValue() driver.Valuer {
+	return sql.NullString{Valid: true, String: v.Value}
+}
+
 func ParseValue(s string, t ValueType) (Value, error) {
 	switch t {
 	case ValueInt:
@@ -154,7 +197,7 @@ func ParseValue(s string, t ValueType) (Value, error) {
 		if err != nil {
 			return nil, fmt.Errorf("couldn't parse %s as int: %v", s, err)
 		}
-		return &IntValue{Value: int(i)}, nil
+		return &IntValue{Value: int64(i)}, nil
 	case ValueFloat:
 		f, err := strconv.ParseFloat(s, 64)
 		if err != nil {
