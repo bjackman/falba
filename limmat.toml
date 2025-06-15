@@ -6,3 +6,7 @@ command = "gofmt -l ."
 [[tests]]
 name = "test"
 command = "go test ./..."
+
+[[tests]]
+name = "vet"
+command = "go vet"
