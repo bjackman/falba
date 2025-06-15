@@ -42,6 +42,15 @@
                 "name": "my_json_float",
                 "type": "float"
             }
+        },
+        "jsonpath_fact": {
+            "type": "jsonpath",
+            "artifact_regexp": "my_artifact.json",
+            "jsonpath": "obj.my_json_string",
+            "fact": {
+                "name": "my_json_fact",
+                "type": "string"
+            }
         }
     }
 }

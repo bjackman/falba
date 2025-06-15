@@ -15,22 +15,18 @@ import (
 )
 
 // ParseResult is just  halper to avoid typing out verbose map and slice biz.
+// TODO: This is wack, still figuring out these details  of the data model, so
+// probably this type makes no sense anyway.
 type ParseResult struct {
 	Facts   map[string]falba.Value
 	Metrics []*falba.Metric
 }
 
-func newParseResult() *ParseResult {
+func emptyParseResult() *ParseResult {
 	return &ParseResult{
 		Facts:   map[string]falba.Value{},
 		Metrics: []*falba.Metric{},
 	}
-}
-
-func singleMetricResult(name string, val falba.Value) *ParseResult {
-	r := newParseResult()
-	r.Metrics = append(r.Metrics, &falba.Metric{Name: name, Value: val})
-	return r
 }
 
 var ErrParseFailure = errors.New("parse failure")
@@ -44,19 +40,40 @@ type Extractor interface {
 	Extract(artifact *falba.Artifact) (falba.Value, error)
 }
 
+type TargetType int
+
+const (
+	TargetFact TargetType = iota
+	TargetMetric
+)
+
+// Describes the thing a parser produces, i.e. a fact or metric.
+type ParserTarget struct {
+	Name       string
+	TargetType TargetType
+	ValueType  falba.ValueType
+}
+
+func (t *ParserTarget) result(val falba.Value) *ParseResult {
+	r := emptyParseResult()
+	if t.TargetType == TargetMetric {
+		r.Metrics = append(r.Metrics, &falba.Metric{Name: t.Name, Value: val})
+	} else {
+		r.Facts[t.Name] = val
+	}
+	return r
+}
+
 // A Parser is a bundle of logic for extracting information from Artifacts.
 type Parser struct {
 	Name string
 	// Only produce metrics for artifacts matching this regexp.
 	ArtifactRE *regexp.Regexp
-	// The name of the metric that will be produced.
-	MetricName string
-	// The type of the value that will be produced.
-	MetricType falba.ValueType
+	target     *ParserTarget
 	Extractor
 }
 
-func NewParser(name string, artifactPattern string, metricName string, metricType falba.ValueType, extractor Extractor) (*Parser, error) {
+func NewParser(name string, artifactPattern string, target *ParserTarget, extractor Extractor) (*Parser, error) {
 	artifactRE, err := regexp.Compile(artifactPattern)
 	if err != nil {
 		return nil, fmt.Errorf("compiling artifact regexp pattern %q: %v", artifactPattern, err)
@@ -65,8 +82,7 @@ func NewParser(name string, artifactPattern string, metricName string, metricTyp
 	return &Parser{
 		Name:       name,
 		ArtifactRE: artifactRE,
-		MetricName: metricName,
-		MetricType: metricType,
+		target:     target,
 		Extractor:  extractor,
 	}, nil
 }
@@ -83,14 +99,14 @@ func NewParser(name string, artifactPattern string, metricName string, metricTyp
 // facts or metrics, I think.
 func (p *Parser) Parse(artifact *falba.Artifact) (*ParseResult, error) {
 	if !p.ArtifactRE.MatchString(artifact.Name) {
-		return newParseResult(), nil
+		return emptyParseResult(), nil
 	}
 	val, err := p.Extractor.Extract(artifact)
 	if err != nil {
 		return nil, err
 	}
 	// TODO: Is it OK that we are kinda forgetting the expected type here?
-	return singleMetricResult(p.MetricName, val), nil
+	return p.target.result(val), nil
 }
 
 // RegexpExtractor is an extractor that uses regexps provided by the user to
@@ -200,10 +216,15 @@ type BaseParserConfig struct {
 	// Parse the artifact if its path (relative to the artifacts dir) matches
 	// this regexp.
 	ArtifactRegexp string `json:"artifact_regexp"`
-	Metric         struct {
+	// Specify either the metric to produce, or the fact to produce.
+	Metric *struct {
 		Name string `json:"name"`
 		Type string `json:"type"`
 	} `json:"metric"`
+	Fact *struct {
+		Name string `json:"name"`
+		Type string `json:"type"`
+	} `json:"fact"`
 }
 
 // This just checks if the config structure has the right fields, it doesn't
@@ -215,11 +236,23 @@ func (c *BaseParserConfig) ValidateFields() error {
 	if c.ArtifactRegexp == "" {
 		return fmt.Errorf("missing/empty 'artifact_regexp' field")
 	}
-	if c.Metric.Name == "" {
-		return fmt.Errorf("missing/empty 'metric.name' field")
+	if (c.Metric != nil) == (c.Fact != nil) {
+		return fmt.Errorf("specify exactly one of 'metric' and 'fact'")
 	}
-	if c.Metric.Type == "" {
-		return fmt.Errorf("missing/empty 'metric.type' field")
+	if c.Metric != nil {
+		if c.Metric.Name == "" {
+			return fmt.Errorf("missing/empty 'metric.name' field")
+		}
+		if c.Metric.Type == "" {
+			return fmt.Errorf("missing/empty 'metric.type' field")
+		}
+	} else {
+		if c.Fact.Name == "" {
+			return fmt.Errorf("missing/empty 'fact.name' field")
+		}
+		if c.Fact.Type == "" {
+			return fmt.Errorf("missing/empty 'fact.type' field")
+		}
 	}
 	return nil
 }
@@ -254,9 +287,29 @@ func FromConfig(rawConfig json.RawMessage, name string) (*Parser, error) {
 		return nil, fmt.Errorf("decoding 'type' for parser: %v", err)
 	}
 
-	resultType, err := falba.ParseValueType(baseConfig.Metric.Type)
-	if err != nil {
-		return nil, fmt.Errorf("parsing metric type: %v", err)
+	var target ParserTarget
+	if baseConfig.Metric != nil {
+		valueType, err := falba.ParseValueType(baseConfig.Metric.Type)
+		if err != nil {
+			return nil, fmt.Errorf("parsing metric type: %v", err)
+		}
+		target = ParserTarget{
+			TargetType: TargetMetric,
+			Name:       baseConfig.Metric.Name,
+			ValueType:  valueType,
+		}
+	} else if baseConfig.Fact != nil {
+		valueType, err := falba.ParseValueType(baseConfig.Fact.Type)
+		if err != nil {
+			return nil, fmt.Errorf("parsing metric type: %v", err)
+		}
+		target = ParserTarget{
+			TargetType: TargetFact,
+			Name:       baseConfig.Fact.Name,
+			ValueType:  valueType,
+		}
+	} else {
+		return nil, fmt.Errorf("must specify 'fact.type' or 'value.type'")
 	}
 
 	var extractor Extractor
@@ -273,7 +326,7 @@ func FromConfig(rawConfig json.RawMessage, name string) (*Parser, error) {
 			return nil, fmt.Errorf("invalid %q parser config: %v", baseConfig.Type, err)
 		}
 		var err error
-		extractor, err = NewRegexpExtractor(".+", resultType)
+		extractor, err = NewRegexpExtractor(".+", target.ValueType)
 		if err != nil {
 			return nil, fmt.Errorf("setting up single-value extractor: %v", err)
 		}
@@ -288,7 +341,7 @@ func FromConfig(rawConfig json.RawMessage, name string) (*Parser, error) {
 			return nil, fmt.Errorf("invalid %q parser config: %v", baseConfig.Type, err)
 		}
 		var err error
-		extractor, err = NewJSONPathExtractor(config.JSONPath, resultType)
+		extractor, err = NewJSONPathExtractor(config.JSONPath, target.ValueType)
 		if err != nil {
 			return nil, fmt.Errorf("setting up JSONPath extractor: %v", err)
 		}
@@ -296,5 +349,5 @@ func FromConfig(rawConfig json.RawMessage, name string) (*Parser, error) {
 		return nil, fmt.Errorf("unknown parser type %q", baseConfig.Type)
 	}
 
-	return NewParser(name, baseConfig.ArtifactRegexp, baseConfig.Metric.Name, resultType, extractor)
+	return NewParser(name, baseConfig.ArtifactRegexp, &target, extractor)
 }

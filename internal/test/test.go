@@ -14,7 +14,12 @@ func MustNewRegexpParser(t *testing.T, pattern string, metricName string, metric
 	if err != nil {
 		t.Fatalf("Failed to construct extractor: %v", err)
 	}
-	p, err := parser.NewParser("fake", ".*", metricName, metricType, e)
+	target := &parser.ParserTarget{
+		Name:       metricName,
+		TargetType: parser.TargetMetric,
+		ValueType:  metricType,
+	}
+	p, err := parser.NewParser("fake", ".*", target, e)
 	if err != nil {
 		t.Fatalf("Failed to construct parser: %v", err)
 	}

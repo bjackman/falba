@@ -47,7 +47,9 @@ func TestReadDB(t *testing.T) {
 					Value: &falba.FloatValue{Value: 2.0},
 				},
 			},
-			Facts: map[string]falba.Value{},
+			Facts: map[string]falba.Value{
+				"my_json_fact": &falba.StringValue{Value: "foo"},
+			},
 		},
 	}
 
