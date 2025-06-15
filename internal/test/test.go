@@ -9,8 +9,12 @@ import (
 	"github.com/bjackman/falba/internal/parser"
 )
 
-func MustNewRegexpParser(t *testing.T, pattern string, metricName string, metricType falba.ValueType) *parser.RegexpParser {
-	p, err := parser.NewRegexpParser("fake", ".*", pattern, metricName, metricType)
+func MustNewRegexpParser(t *testing.T, pattern string, metricName string, metricType falba.ValueType) *parser.Parser {
+	e, err := parser.NewRegexpExtractor(pattern, metricType)
+	if err != nil {
+		t.Fatalf("Failed to construct extractor: %v", err)
+	}
+	p, err := parser.NewParser("fake", ".*", metricName, metricType, e)
 	if err != nil {
 		t.Fatalf("Failed to construct parser: %v", err)
 	}

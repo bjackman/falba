@@ -35,25 +35,17 @@ func singleMetricResult(name string, val falba.Value) *ParseResult {
 
 var ErrParseFailure = errors.New("parse failure")
 
-// A Parser is a bundle of logic for extracting information from Artifacts.
-type Parser interface {
+// An Extractor contains the core logic for reading a value from an artifact.
+type Extractor interface {
 	fmt.Stringer
 	// Parse processes a single Artifact and produces results. If the error
 	// returned Is a ErrParseFailure it just means something is unexpected about
 	// the Artifact contents, otherwise it means something went completely wrong.
-	Parse(artifact *falba.Artifact) (*ParseResult, error)
+	Extract(artifact *falba.Artifact) (falba.Value, error)
 }
 
-// Common Parser fields.
-// TODO: all these arguments are a mess, this needs to be split up into
-// different layers but it's not entirely clear the best way to do that.
-// (Basically, parserBase should be a proper type exposed to the rest of Falba,
-// but I can't see what the semantics of that type are supposed to be).
-// Something like: there is one type responsible for actually parsing the
-// content of the artifact, and one responsible for mapping the parsed content
-// onto facts and metrics. But I can't quite see how those two types should
-// interact.
-type parserBase struct {
+// A Parser is a bundle of logic for extracting information from Artifacts.
+type Parser struct {
 	Name string
 	// Only produce metrics for artifacts matching this regexp.
 	ArtifactRE *regexp.Regexp
@@ -61,26 +53,46 @@ type parserBase struct {
 	MetricName string
 	// The type of the value that will be produced.
 	MetricType falba.ValueType
+	Extractor
 }
 
-func newParserBase(name string, artifactPattern string, metricName string, metricType falba.ValueType) (*parserBase, error) {
+func NewParser(name string, artifactPattern string, metricName string, metricType falba.ValueType, extractor Extractor) (*Parser, error) {
 	artifactRE, err := regexp.Compile(artifactPattern)
 	if err != nil {
 		return nil, fmt.Errorf("compiling artifact regexp pattern %q: %v", artifactPattern, err)
 	}
 
-	return &parserBase{
+	return &Parser{
 		Name:       name,
 		ArtifactRE: artifactRE,
 		MetricName: metricName,
 		MetricType: metricType,
+		Extractor:  extractor,
 	}, nil
 }
 
-// RegexpParser is a parser that uses regexps provided by the user to extract
-// facts and metrics.
-type RegexpParser struct {
-	parserBase
+// Parse extract facts and metrics from an artifact.
+// TODO: This only supports each parser producing a single metric/fact. I'm
+// starting to think this is actually a nice simplification. It's less flexible,
+// but isn't the whole point of this design that, if you think you wanna gather
+// zillions of facts, you are probably wrong? You only need to extract the ones
+// you're actually capable of analysing.
+func (p *Parser) Parse(artifact *falba.Artifact) (*ParseResult, error) {
+	if !p.ArtifactRE.MatchString(artifact.Name) {
+		return newParseResult(), nil
+	}
+	val, err := p.Extractor.Extract(artifact)
+	if err != nil {
+		return nil, err
+	}
+	// TODO: Is it OK that we are kinda forgetting the expected type here?
+	return singleMetricResult(p.MetricName, val), nil
+}
+
+// RegexpExtractor is an extractor that uses regexps provided by the user to
+// extract facts and metrics.
+type RegexpExtractor struct {
+	resultType falba.ValueType
 	// Currently this just supports extracting a single metric from an artifact.
 	// The regexp must have zero or one capture groups. If there's a capture
 	// group, the metric is taken from the submatch, otherwise from the match of
@@ -88,11 +100,7 @@ type RegexpParser struct {
 	re *regexp.Regexp
 }
 
-func NewRegexpParser(name string, artifactPattern string, pattern string, metricName string, metricType falba.ValueType) (*RegexpParser, error) {
-	base, err := newParserBase(name, artifactPattern, metricName, metricType)
-	if err != nil {
-		return nil, err
-	}
+func NewRegexpExtractor(pattern string, resultType falba.ValueType) (*RegexpExtractor, error) {
 	re, err := regexp.Compile(pattern)
 	if err != nil {
 		return nil, fmt.Errorf("compiling regexp pattern %q: %v", pattern, err)
@@ -100,66 +108,53 @@ func NewRegexpParser(name string, artifactPattern string, pattern string, metric
 	if re.NumSubexp() > 1 {
 		return nil, fmt.Errorf("regexp %q contained %d sub-expressions, up to 1 is allowed", pattern, re.NumSubexp())
 	}
-	return &RegexpParser{
-		parserBase: *base,
-		re:         re,
-	}, nil
+	return &RegexpExtractor{re: re, resultType: resultType}, nil
 }
 
-func (p *RegexpParser) Parse(artifact *falba.Artifact) (*ParseResult, error) {
-	if !p.ArtifactRE.MatchString(artifact.Name) {
-		return newParseResult(), nil
-	}
+func (e *RegexpExtractor) Extract(artifact *falba.Artifact) (falba.Value, error) {
 	content, err := artifact.Content()
 	if err != nil {
 		return nil, fmt.Errorf("getting artifact content: %v", err)
 	}
 
-	matches := p.re.FindAllSubmatch(content, -1)
+	matches := e.re.FindAllSubmatch(content, -1)
 	if len(matches) == 0 {
-		return nil, fmt.Errorf("%w: no matches for %v in %v", ErrParseFailure, p.re, artifact)
+		return nil, fmt.Errorf("%w: no matches for %v in %v", ErrParseFailure, e.re, artifact)
 	}
 	if len(matches) > 1 {
-		return nil, fmt.Errorf("%w: multple matches for %v in %v, only one is allowed", ErrParseFailure, p.re, artifact)
+		return nil, fmt.Errorf("%w: multple matches for %v in %v, only one is allowed", ErrParseFailure, e.re, artifact)
 	}
-	match := matches[0][p.re.NumSubexp()]
+	match := matches[0][e.re.NumSubexp()]
 
-	val, err := falba.ParseValue(string(match), p.MetricType)
+	val, err := falba.ParseValue(string(match), e.resultType)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrParseFailure, err)
 	}
 
-	return singleMetricResult(p.MetricName, val), nil
+	return val, nil
 }
 
-func (p *RegexpParser) String() string {
-	return fmt.Sprintf("RegexpParser{%v -> %v(%q)}", p.re, p.MetricType, p.MetricName)
+func (p *RegexpExtractor) String() string {
+	return fmt.Sprintf("RegexpExtractor{%v -> %v}", p.re, p.resultType)
 }
 
-type JSONPathParser struct {
-	parserBase
-	selector *gval.Evaluable
+type JSONPathExtractor struct {
+	resultType falba.ValueType
+	selector   *gval.Evaluable
 }
 
-func NewJSONPathParser(name string, artifactPattern string, expr string, metricName string, metricType falba.ValueType) (*JSONPathParser, error) {
-	base, err := newParserBase(name, artifactPattern, metricName, metricType)
-	if err != nil {
-		return nil, err
-	}
+func NewJSONPathExtractor(expr string, resultType falba.ValueType) (*JSONPathExtractor, error) {
 	selector, err := jsonpath.New(expr)
 	if err != nil {
 		return nil, fmt.Errorf("parsing JSONPath expression: %v", err)
 	}
-	return &JSONPathParser{
-		parserBase: *base,
+	return &JSONPathExtractor{
 		selector:   &selector,
+		resultType: resultType,
 	}, nil
 }
 
-func (p *JSONPathParser) Parse(artifact *falba.Artifact) (*ParseResult, error) {
-	if !p.ArtifactRE.MatchString(artifact.Name) {
-		return newParseResult(), nil
-	}
+func (e *JSONPathExtractor) Extract(artifact *falba.Artifact) (falba.Value, error) {
 	content, err := artifact.Content()
 	if err != nil {
 		return nil, fmt.Errorf("getting artifact content: %v", err)
@@ -168,32 +163,32 @@ func (p *JSONPathParser) Parse(artifact *falba.Artifact) (*ParseResult, error) {
 	if err := json.Unmarshal(content, &obj); err != nil {
 		return nil, fmt.Errorf("%w: unmarshalling from JSON: %v", ErrParseFailure, err)
 	}
-	switch p.MetricType {
+	switch e.resultType {
 	case falba.ValueInt:
-		val, err := p.selector.EvalInt(context.Background(), obj)
+		val, err := e.selector.EvalInt(context.Background(), obj)
 		if err != nil {
 			return nil, fmt.Errorf("%w: evaluating JSONPath as int: %v", ErrParseFailure, err)
 		}
-		return singleMetricResult(p.MetricName, &falba.IntValue{Value: val}), nil
+		return &falba.IntValue{Value: val}, nil
 	case falba.ValueString:
-		val, err := p.selector.EvalString(context.Background(), obj)
+		val, err := e.selector.EvalString(context.Background(), obj)
 		if err != nil {
 			return nil, fmt.Errorf("%w: evaluating JSONPath as int: %v", ErrParseFailure, err)
 		}
-		return singleMetricResult(p.MetricName, &falba.StringValue{Value: val}), nil
+		return &falba.StringValue{Value: val}, nil
 	case falba.ValueFloat:
-		val, err := p.selector.EvalFloat64(context.Background(), obj)
+		val, err := e.selector.EvalFloat64(context.Background(), obj)
 		if err != nil {
 			return nil, fmt.Errorf("%w: evaluating JSONPath as int: %v", ErrParseFailure, err)
 		}
-		return singleMetricResult(p.MetricName, &falba.FloatValue{Value: val}), nil
+		return &falba.FloatValue{Value: val}, nil
 	default:
 		panic("unimplemented")
 	}
 }
 
-func (p *JSONPathParser) String() string {
-	return fmt.Sprintf("JSONPathParser{%v -> %v(%q)}", p.selector, p.MetricType, p.MetricName)
+func (p *JSONPathExtractor) String() string {
+	return fmt.Sprintf("JSONPathParser{%v -> %v}", p.selector, p.resultType)
 }
 
 type BaseParserConfig struct {
@@ -219,17 +214,22 @@ type SingleMetricConfig struct {
 }
 
 // Read a configuration entry for a single parser and return it.
-func FromConfig(rawConfig json.RawMessage, name string) (Parser, error) {
-	// To allow getting the type to determine which "real" struct to unmarshal
-	// as, we first unmarshal to a supertype struct.
-	var typedConfig struct {
-		Type string
-	}
-	if err := json.Unmarshal(rawConfig, &typedConfig); err != nil {
+func FromConfig(rawConfig json.RawMessage, name string) (*Parser, error) {
+	// First parse the common fields, this enables us to get the type, then we
+	// can subsequently parse all the remaining fields.
+	var baseConfig BaseParserConfig
+	if err := json.Unmarshal(rawConfig, &baseConfig); err != nil {
 		return nil, fmt.Errorf("decoding 'type' for parser: %v", err)
 	}
 
-	switch typedConfig.Type {
+	resultType, err := falba.ParseValueType(baseConfig.Metric.Type)
+	if err != nil {
+		return nil, fmt.Errorf("parsing metric type: %v", err)
+	}
+
+	var extractor Extractor
+
+	switch baseConfig.Type {
 	case "single_metric":
 		decoder := json.NewDecoder(strings.NewReader(string(rawConfig)))
 		decoder.DisallowUnknownFields()
@@ -237,11 +237,11 @@ func FromConfig(rawConfig json.RawMessage, name string) (Parser, error) {
 		if err := decoder.Decode(&config); err != nil {
 			return nil, fmt.Errorf("decoding single_metric parser config: %v", err)
 		}
-		t, err := falba.ParseValueType(config.Metric.Type)
+		var err error
+		extractor, err = NewRegexpExtractor(".+", resultType)
 		if err != nil {
-			return nil, fmt.Errorf("parsing metric type: %v", err)
+			return nil, fmt.Errorf("setting up single-value extractor: %v", err)
 		}
-		return NewRegexpParser(name, config.ArtifactRegexp, ".+", config.Metric.Name, t)
 	case "jsonpath":
 		decoder := json.NewDecoder(strings.NewReader(string(rawConfig)))
 		decoder.DisallowUnknownFields()
@@ -249,12 +249,14 @@ func FromConfig(rawConfig json.RawMessage, name string) (Parser, error) {
 		if err := decoder.Decode(&config); err != nil {
 			return nil, fmt.Errorf("decoding single_metric parser config: %v", err)
 		}
-		t, err := falba.ParseValueType(config.Metric.Type)
+		var err error
+		extractor, err = NewJSONPathExtractor(config.JSONPath, resultType)
 		if err != nil {
-			return nil, fmt.Errorf("parsing metric type: %v", err)
+			return nil, fmt.Errorf("setting up JSONPath extractor: %v", err)
 		}
-		return NewJSONPathParser(name, config.ArtifactRegexp, config.JSONPath, config.Metric.Name, t)
 	default:
-		return nil, fmt.Errorf("unknown parser type %q", typedConfig.Type)
+		return nil, fmt.Errorf("unknown parser type %q", baseConfig.Type)
 	}
+
+	return NewParser(name, baseConfig.ArtifactRegexp, baseConfig.Metric.Name, resultType, extractor)
 }

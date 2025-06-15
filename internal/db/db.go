@@ -31,7 +31,7 @@ func isDir(path string) (bool, error) {
 	return info.IsDir(), nil
 }
 
-func readResult(resultDir string, parsers []parser.Parser) (*falba.Result, error) {
+func readResult(resultDir string, parsers []*parser.Parser) (*falba.Result, error) {
 	resultName := filepath.Base(resultDir)
 	testName, resultID, ok := strings.Cut(resultName, ":")
 	if !ok || testName == "" || resultID == "" {
@@ -115,7 +115,7 @@ type ParsersConfig struct {
 	Parsers map[string]json.RawMessage `json:"parsers"`
 }
 
-func parseParserConfig(configPath string) ([]parser.Parser, error) {
+func parseParserConfig(configPath string) ([]*parser.Parser, error) {
 	configContent, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("reading DB config from %v: %w", configPath, err)
@@ -128,7 +128,7 @@ func parseParserConfig(configPath string) ([]parser.Parser, error) {
 	if err := decoder.Decode(&config); err != nil {
 		return nil, fmt.Errorf("decoding DB config: %w", err)
 	}
-	var parsers []parser.Parser
+	var parsers []*parser.Parser
 	for name, parserConfig := range config.Parsers {
 		parser, err := parser.FromConfig(parserConfig, name)
 		if err != nil {

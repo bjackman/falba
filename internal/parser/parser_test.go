@@ -27,9 +27,9 @@ func TestParser(t *testing.T) {
 		// Only one match group is allowed.
 		"(foo)(bar)",
 	} {
-		p, err := parser.NewRegexpParser("my-parser", ".*", pattern, "name", falba.ValueInt)
+		e, err := parser.NewRegexpExtractor(pattern, falba.ValueInt)
 		if err == nil {
-			t.Errorf("Wanted error for regexp pattern %q, got %v", pattern, p)
+			t.Errorf("Wanted error for regexp pattern %q, got %v", pattern, e)
 		}
 	}
 
@@ -37,7 +37,7 @@ func TestParser(t *testing.T) {
 	for _, tc := range []struct {
 		desc    string
 		content string
-		parser  *parser.RegexpParser
+		parser  *parser.Parser
 	}{
 		{
 			desc:    "empty content",
@@ -69,7 +69,7 @@ func TestParser(t *testing.T) {
 	for _, tc := range []struct {
 		desc    string
 		content string
-		parser  *parser.RegexpParser
+		parser  *parser.Parser
 		want    *falba.Metric
 	}{
 		{
