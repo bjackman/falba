@@ -2,6 +2,7 @@
 package db
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -103,15 +104,52 @@ func readResult(resultDir string, parsers []parser.Parser) (*falba.Result, error
 
 }
 
+// Config file written by the user that tells Falba how to parse data out of the
+// artifacts.
+type ParsersConfig struct {
+	Parsers map[string]json.RawMessage `json:"parsers"`
+}
+
+func parseParserConfig(configPath string) ([]parser.Parser, error) {
+	configContent, err := os.ReadFile(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("reading DB config from %v: %w", configPath, err)
+	}
+	var config ParsersConfig
+	if err := json.Unmarshal(configContent, &config); err != nil {
+		return nil, fmt.Errorf("decoding DB config: %w", err)
+	}
+	var parsers []parser.Parser
+	for name, parserConfig := range config.Parsers {
+		parser, err := parser.FromConfig(parserConfig, name)
+		if err != nil {
+			return nil, fmt.Errorf("configuring parser %q: %w", name, err)
+		}
+		parsers = append(parsers, parser)
+	}
+	if len(parsers) == 0 {
+		return nil, fmt.Errorf("no 'parsers' defined")
+	}
+	return parsers, nil
+}
+
 // Read all the results from a DB directory and parse all their facts and
 // metrics.
-func ReadDB(rootDir string, parsers []parser.Parser) (*DB, error) {
+func ReadDB(rootDir string) (*DB, error) {
+	parsers, err := parseParserConfig(filepath.Join(rootDir, "parsers.json"))
+	if err != nil {
+		return nil, err
+	}
+
 	dir, err := os.ReadDir(rootDir)
 	if err != nil {
 		return nil, fmt.Errorf("opening DB root: %w", err)
 	}
 	results := []*falba.Result{}
 	for _, entry := range dir {
+		if entry.Name() == "parsers.json" {
+			continue
+		}
 		resultDir := filepath.Join(rootDir, entry.Name())
 		result, err := readResult(resultDir, parsers)
 		if err != nil {

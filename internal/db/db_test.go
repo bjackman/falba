@@ -5,13 +5,12 @@ import (
 
 	"github.com/bjackman/falba/internal/db"
 	"github.com/bjackman/falba/internal/falba"
-	"github.com/bjackman/falba/internal/parser"
 	"github.com/bjackman/falba/internal/test"
 	"github.com/google/go-cmp/cmp"
 )
 
 func TestReadDB(t *testing.T) {
-	db, err := db.ReadDB("testdata/results", []parser.Parser{test.MustNewRegexpParser(t, `\d+`, "my-metric", falba.ValueInt)})
+	db, err := db.ReadDB("testdata/results")
 	if err != nil {
 		t.Fatalf("Failed to read DB: %v", err)
 	}
@@ -26,7 +25,7 @@ func TestReadDB(t *testing.T) {
 			},
 			Metrics: []*falba.Metric{
 				{
-					Name:  "my-metric",
+					Name:  "my_raw_int",
 					Value: &falba.IntValue{Value: 1},
 				},
 			},

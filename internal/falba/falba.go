@@ -62,6 +62,19 @@ func (t ValueType) String() string {
 	}
 }
 
+func ParseValueType(s string) (ValueType, error) {
+	switch s {
+	case "int":
+		return ValueInt, nil
+	case "float":
+		return ValueFloat, nil
+	case "string":
+		return ValueString, nil
+	default:
+		return 0, fmt.Errorf("unknown value type %q, expect 'int', 'float' or 'string'", s)
+	}
+}
+
 // A Value is a value that can be stored as a Fact or a Metric.
 type Value interface {
 	// Type returns the type of the value, telling you which per-type method you
