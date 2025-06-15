@@ -19,8 +19,9 @@ import (
 // directory is of the format $test_name:$test_id. It contains a directory
 // called artifacts/ which contains the artifacts.
 type DB struct {
-	RootDir string
-	Results []*falba.Result
+	RootDir   string
+	Results   []*falba.Result
+	FactTypes map[string]falba.ValueType
 }
 
 func isDir(path string) (bool, error) {
@@ -150,6 +151,25 @@ func ReadDB(rootDir string) (*DB, error) {
 		return nil, err
 	}
 
+	// Ensure parsers produce the same type for each fact and metric.
+	// Note that it's not fundamentally forbidden to have two parsers that
+	// produce the same output. For metrics that's just totally fine. For facts
+	// it will produce an error later if multiple parsers produce a fact for the
+	// same result, though.
+	// While we're at it, also remember the fact types as they'll be used to
+	// construct a results tablellater.
+	factTypes := map[string]falba.ValueType{}
+	allTypes := map[string]falba.ValueType{}
+	for _, p := range parsers {
+		if t, ok := allTypes[p.Target.Name]; ok && p.Target.ValueType != t {
+			return nil, fmt.Errorf("parser %v produced fact/metric %q of type %v, but another outputs this as %v",
+				p, p.Target.Name, p.Target.ValueType, t)
+		}
+		if p.Target.TargetType == parser.TargetFact {
+			factTypes[p.Target.Name] = p.Target.ValueType
+		}
+	}
+
 	dir, err := os.ReadDir(rootDir)
 	if err != nil {
 		return nil, fmt.Errorf("opening DB root: %w", err)
@@ -166,5 +186,5 @@ func ReadDB(rootDir string) (*DB, error) {
 		}
 		results = append(results, result)
 	}
-	return &DB{RootDir: rootDir, Results: results}, nil
+	return &DB{RootDir: rootDir, Results: results, FactTypes: factTypes}, nil
 }
