@@ -29,6 +29,8 @@ type Result struct {
 
 // An Artifact is a file in the database, associated with a Result.
 type Artifact struct {
+	// The name is just the path relative to the artifacts dir.
+	Name string
 	Path string
 }
 

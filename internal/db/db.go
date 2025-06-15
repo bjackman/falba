@@ -41,6 +41,11 @@ func readResult(resultDir string, parsers []parser.Parser) (*falba.Result, error
 	// Find artifacts. At present every leaf file is an artifact. It might make
 	// sense to support having a whole directory be a single artifact at some
 	// point.
+	artifactsDirRel := filepath.Join(resultDir, "artifacts")
+	artifactsDir, err := filepath.Abs(artifactsDirRel)
+	if err != nil {
+		return nil, fmt.Errorf("converting artifacts dir path %v to absolute: %v", artifactsDirRel, err)
+	}
 	artifacts := []*falba.Artifact{}
 	visit := func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -53,14 +58,14 @@ func readResult(resultDir string, parsers []parser.Parser) (*falba.Result, error
 		if isDir {
 			return nil
 		}
-		absPath, err := filepath.Abs(path)
+		name, err := filepath.Rel(artifactsDir, path)
 		if err != nil {
-			return fmt.Errorf("converting artifact path %v to absolute: %v", path, err)
+			log.Panicf("Encountered file %q not in artifacts dir %q while walking artifacts dir", path, artifactsDir)
 		}
-		artifacts = append(artifacts, &falba.Artifact{Path: absPath})
+		artifacts = append(artifacts, &falba.Artifact{Name: name, Path: path})
 		return nil
 	}
-	if err := filepath.WalkDir(filepath.Join(resultDir, "artifacts"), visit); err != nil {
+	if err := filepath.WalkDir(artifactsDir, visit); err != nil {
 		return nil, fmt.Errorf("walking artifacts/ dir: %w", err)
 	}
 
@@ -115,8 +120,12 @@ func parseParserConfig(configPath string) ([]parser.Parser, error) {
 	if err != nil {
 		return nil, fmt.Errorf("reading DB config from %v: %w", configPath, err)
 	}
+
+	decoder := json.NewDecoder(strings.NewReader(string(configContent)))
+	decoder.DisallowUnknownFields()
+
 	var config ParsersConfig
-	if err := json.Unmarshal(configContent, &config); err != nil {
+	if err := decoder.Decode(&config); err != nil {
 		return nil, fmt.Errorf("decoding DB config: %w", err)
 	}
 	var parsers []parser.Parser

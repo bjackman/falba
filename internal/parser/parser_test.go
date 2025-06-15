@@ -18,7 +18,7 @@ func fakeArtifact(t *testing.T, content string) *falba.Artifact {
 	if err != nil {
 		t.Fatalf("Setting up fake artifact: %v", err)
 	}
-	return &falba.Artifact{Path: path}
+	return &falba.Artifact{Name: "artifact", Path: path}
 }
 
 func TestParser(t *testing.T) {
@@ -27,7 +27,7 @@ func TestParser(t *testing.T) {
 		// Only one match group is allowed.
 		"(foo)(bar)",
 	} {
-		p, err := parser.NewRegexpParser("my-parser", pattern, "name", falba.ValueInt)
+		p, err := parser.NewRegexpParser("my-parser", ".*", pattern, "name", falba.ValueInt)
 		if err == nil {
 			t.Errorf("Wanted error for regexp pattern %q, got %v", pattern, p)
 		}

@@ -1,0 +1,20 @@
+{
+    "parsers": {
+        "no_existo": {
+            "type": "single_metric",
+            "artifact_regexp": "no_existo",
+            "metric": {
+                "name": "should_not_be_found",
+                "type": "int"
+            }
+        },
+        "raw_int_example": {
+            "type": "single_metric",
+            "artifact_regexp": "my_raw_int",
+            "metric": {
+                "name": "my_raw_int",
+                "type": "int"
+            }
+        }
+    }
+}

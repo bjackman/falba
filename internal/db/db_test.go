@@ -20,7 +20,8 @@ func TestReadDB(t *testing.T) {
 			ResultID: "1514e610de1e",
 			Artifacts: []*falba.Artifact{
 				{
-					Path: test.MustFilepathAbs(t, "testdata/results/my_test:1514e610de1e/artifacts/my_artifact"),
+					Name: "my_raw_int",
+					Path: test.MustFilepathAbs(t, "testdata/results/my_test:1514e610de1e/artifacts/my_raw_int"),
 				},
 			},
 			Metrics: []*falba.Metric{
@@ -33,6 +34,6 @@ func TestReadDB(t *testing.T) {
 		},
 	}
 	if diff := cmp.Diff(db.Results, wantResults); diff != "" {
-		t.Errorf("Unexpected results when reading DB: %v", diff)
+		t.Errorf("Unexpected results when reading DB (-got +want): %v", diff)
 	}
 }

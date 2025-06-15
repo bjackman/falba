@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"regexp"
+	"strings"
 
 	"github.com/bjackman/falba/internal/falba"
 )
@@ -43,7 +45,8 @@ type Parser interface {
 // RegexpParser is a parser that uses regexps provided by the user to extract
 // facts and metrics.
 type RegexpParser struct {
-	Name string
+	Name       string
+	ArtifactRE *regexp.Regexp
 	// Currently this just supports extracting a single metric from an artifact.
 	// The regexp must have zero or one capture groups. If there's a capture
 	// group, the metric is taken from the submatch, otherwise from the match of
@@ -55,7 +58,13 @@ type RegexpParser struct {
 	MetricType falba.ValueType
 }
 
-func NewRegexpParser(name string, pattern string, metricName string, metricType falba.ValueType) (*RegexpParser, error) {
+func NewRegexpParser(name string, artifactPattern string, pattern string, metricName string, metricType falba.ValueType) (*RegexpParser, error) {
+	artifactRE, err := regexp.Compile(artifactPattern)
+	if err != nil {
+		return nil, fmt.Errorf("compiling artifact regexp pattern %q: %v", pattern, err)
+	}
+	log.Printf("artifact re: %q -> %v", artifactPattern, artifactRE)
+
 	re, err := regexp.Compile(pattern)
 	if err != nil {
 		return nil, fmt.Errorf("compiling regexp pattern %q: %v", pattern, err)
@@ -63,10 +72,14 @@ func NewRegexpParser(name string, pattern string, metricName string, metricType 
 	if re.NumSubexp() > 1 {
 		return nil, fmt.Errorf("regexp %q contained %d sub-expressions, up to 1 is allowed", pattern, re.NumSubexp())
 	}
-	return &RegexpParser{Name: name, re: re, MetricName: metricName, MetricType: metricType}, nil
+	return &RegexpParser{Name: name, re: re, ArtifactRE: artifactRE, MetricName: metricName, MetricType: metricType}, nil
 }
 
 func (p *RegexpParser) Parse(artifact *falba.Artifact) (*ParseResult, error) {
+	if !p.ArtifactRE.MatchString(artifact.Name) {
+		return newParseResult(), nil
+	}
+	log.Printf("Artifact %v matched %v", artifact, p.ArtifactRE)
 	content, err := artifact.Content()
 	if err != nil {
 		return nil, fmt.Errorf("getting artifact content: %v", err)
@@ -96,12 +109,14 @@ func (p *RegexpParser) String() string {
 // Config for a parser that just reads a single metric from a file, using its
 // entire content.
 type SingleMetricConfig struct {
-	Type           string // Must be "single_metric"
-	ArtifactRegexp string
+	Type string `json:"type"` // Must be "single_metric"
+	// Parse the artifact if its path (relative to the artifacts dir) matches
+	// this regexp.
+	ArtifactRegexp string `json:"artifact_regexp"`
 	Metric         struct {
-		Name string
-		Type string
-	}
+		Name string `json:"name"`
+		Type string `json:"type"`
+	} `json:"metric"`
 }
 
 // Read a configuration entry for a single parser and return it.
@@ -117,15 +132,17 @@ func FromConfig(rawConfig json.RawMessage, name string) (Parser, error) {
 
 	switch typedConfig.Type {
 	case "single_metric":
+		decoder := json.NewDecoder(strings.NewReader(string(rawConfig)))
+		decoder.DisallowUnknownFields()
 		var config SingleMetricConfig
-		if err := json.Unmarshal(rawConfig, &config); err != nil {
+		if err := decoder.Decode(&config); err != nil {
 			return nil, fmt.Errorf("decoding single_metric parser config: %v", err)
 		}
 		t, err := falba.ParseValueType(config.Metric.Type)
 		if err != nil {
 			return nil, fmt.Errorf("parsing metric type: %v", err)
 		}
-		return NewRegexpParser(name, ".+", config.Metric.Name, t)
+		return NewRegexpParser(name, config.ArtifactRegexp, ".+", config.Metric.Name, t)
 	default:
 		return nil, fmt.Errorf("unknown parser type %q", typedConfig.Type)
 	}
