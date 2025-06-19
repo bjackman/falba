@@ -3,10 +3,14 @@ package cmd
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"maps"
+	"os"
+	"os/exec"
 	"regexp"
 	"slices"
 	"strings"
+	"syscall"
 
 	"github.com/bjackman/falba/internal/db"
 	"github.com/spf13/cobra"
@@ -17,83 +21,11 @@ import (
 var (
 	// At least one letter, followed by alphanumerics and underscores.
 	sqlColumnRE = regexp.MustCompile(`[A-Za-z]+[A-Za-z0-9_]*`)
+
+	flagDuckdbCli string
+
+	duckDBPath string = "falba.duckdb"
 )
-
-// GEMINI FLASH 2.5 WROTE THIS FUNCTION.
-//
-// I haven't read it. Do not copy from it. It doesn't even print things properly.
-func dumpRows(rows *sql.Rows) error {
-	columns, err := rows.Columns()
-	if err != nil {
-		return fmt.Errorf("failed to get column names: %v", err)
-	}
-
-	// Print header
-	for i, colName := range columns {
-		fmt.Printf("%-20s", colName)
-		if i < len(columns)-1 {
-			fmt.Print("| ")
-		}
-	}
-	fmt.Println()
-	fmt.Println(strings.Repeat("-", 20*len(columns)+2*(len(columns)-1)))
-
-	// Prepare slices for scanning values
-	values := make([]interface{}, len(columns))
-	scanArgs := make([]interface{}, len(columns))
-	for i := range values {
-		scanArgs[i] = &values[i]
-	}
-
-	// Iterate and print rows
-	for rows.Next() {
-		err = rows.Scan(scanArgs...)
-		if err != nil {
-			return fmt.Errorf("failed to scan row: %v", err)
-		}
-
-		for i, val := range values {
-			if val == nil {
-				fmt.Printf("%-20s", "NULL")
-			} else {
-				// Handle []byte for string types, others print as is.
-				switch v := val.(type) {
-				case []byte:
-					fmt.Printf("%-20s", string(v))
-				case map[string]interface{}: // This case will now likely not be hit for 'facts' itself,
-					// as we are flattening the struct in the SELECT query.
-					// However, it's kept here in case other columns might unmarshal to a map.
-					var factStrings []string
-					// Iterate through the map to format the struct fields
-					for key, factVal := range v {
-						// Convert factVal to string, handling []byte specifically
-						var formattedFactVal string
-						if byteVal, ok := factVal.([]byte); ok {
-							formattedFactVal = string(byteVal)
-						} else {
-							formattedFactVal = fmt.Sprintf("%v", factVal)
-						}
-						factStrings = append(factStrings, fmt.Sprintf("%s:%s", key, formattedFactVal))
-					}
-					// Join the fact strings and print, ensuring it fits the column width
-					fmt.Printf("%-20s", strings.Join(factStrings, ", "))
-				default:
-					fmt.Printf("%-20v", v)
-				}
-			}
-			if i < len(columns)-1 {
-				fmt.Print("| ")
-			}
-		}
-		fmt.Println()
-	}
-
-	if err = rows.Err(); err != nil {
-		return fmt.Errorf("error during row iteration: %v", err)
-	}
-
-	return nil
-}
 
 // TODO: Instead of this janky SQL codegen we should just give the Falba DB
 // logic to generate an Arrow table or something
@@ -160,13 +92,13 @@ func insertResults(sqlDB *sql.DB, falbaDB *db.DB) error {
 	return nil
 }
 
-func cmdSQL(cmd *cobra.Command, args []string) error {
+func setupSQL() error {
 	falbaDB, err := db.ReadDB(flagResultDB)
 	if err != nil {
 		return fmt.Errorf("opening Falba DB: %v", err)
 	}
 
-	sqlDB, err := sql.Open("duckdb", "")
+	sqlDB, err := sql.Open("duckdb", duckDBPath)
 	if err != nil {
 		return fmt.Errorf("couldn't open DuckDB: %v", err)
 	}
@@ -179,31 +111,42 @@ func cmdSQL(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("inserting results int SQL table: %w", err)
 	}
 
-	rows, err := sqlDB.Query("SELECT * FROM results")
-	if err != nil {
-		return fmt.Errorf("failed to query results: %v", err)
-	}
-	defer rows.Close()
-	if err := dumpRows(rows); err != nil {
-		return err
+	return nil
+}
+
+// Here we don't use proper error handling because we are going to exec the
+// DuckDB CLI so defer etc won't work.
+func cmdSQL(cmd *cobra.Command, args []string) {
+	if err := setupSQL(); err != nil {
+		log.Fatalf("Setting up SQL DB: %v", err)
 	}
 
-	return nil
+	// Apparently yhe 'exec' package doesn't actually support exec-ing lol.
+	// I got this from https://gobyexample.com/execing-processes
+	cliPath, err := exec.LookPath(flagDuckdbCli)
+	if err != nil {
+		log.Fatalf("Searching $PATH for DuckDB CLI (%q, from --duckdb-cli): %v", flagDuckdbCli, err)
+	}
+	err = syscall.Exec(cliPath, []string{cliPath, duckDBPath}, os.Environ())
+	if err != nil {
+		log.Fatalf("exec()ing DuckDB CLI: %v", err)
+	}
+	// wat
+	log.Fatalf("Unexpectedly returned from exec()ing DuckDB CLI")
 }
 
 // sqlCmd represents the sql command
 var sqlCmd = &cobra.Command{
 	Use:   "sql",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-	RunE: cmdSQL,
+	Short: "Drop into a DuckDB SQL prompt.",
+	Long: `Creates a DuckDB database and then uses the DuckDB CLI
+(https://duckdb.org/docs/stable/clients/cli/overview.html) to drop you into
+a SQL REPL where you can explore the Falba data.`,
+	Run: cmdSQL,
 }
 
 func init() {
+	sqlCmd.Flags().StringVar(&flagDuckdbCli, "duckdb-cli", "duckdb",
+		"DuckDB CLI executable. Looked up in $PATH")
 	rootCmd.AddCommand(sqlCmd)
 }
