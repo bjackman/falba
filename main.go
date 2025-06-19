@@ -119,7 +119,6 @@ func createResultsTable(sqlDB *sql.DB, falbaDB *db.DB) error {
 	}
 	query := fmt.Sprintf(`CREATE TABLE results (test_name STRING, id STRING, facts STRUCT(%s))`,
 		strings.Join(structFields, ", "))
-	log.Print(query)
 	if _, err := sqlDB.Exec(query); err != nil {
 		return fmt.Errorf("could not create table users: %s", err.Error())
 	}
@@ -140,7 +139,6 @@ func insertResults(sqlDB *sql.DB, falbaDB *db.DB) error {
 		}
 	}
 	b.WriteString(`))`)
-	log.Print(b.String())
 	insertStmt, err := sqlDB.Prepare(b.String())
 	if err != nil {
 		return fmt.Errorf("preparing insert statement: %v", err)
@@ -154,10 +152,8 @@ func insertResults(sqlDB *sql.DB, falbaDB *db.DB) error {
 			// confusing.
 			val, ok := result.Facts[factName]
 			if ok {
-				log.Print(val)
 				args = append(args, val.SQLValue())
 			} else {
-				log.Printf("null for %v", factName)
 				args = append(args, falbaDB.FactTypes[factName].SQLNull())
 			}
 		}
