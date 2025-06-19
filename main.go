@@ -99,19 +99,11 @@ func dumpRows(rows *sql.Rows) error {
 	return nil
 }
 
-func doMain() error {
-	flag.Parse()
-
-	falbaDB, err := db.ReadDB(*resultDBFlag)
-	if err != nil {
-		return fmt.Errorf("opening Falba DB: %v", err)
-	}
-
-	sqlDB, err := sql.Open("duckdb", "")
-	if err != nil {
-		return fmt.Errorf("couldn't open DuckDB: %v", err)
-	}
-
+// TODO: Instead of this janky SQL codegen we should just give the Falba DB
+// logic to generate an Arrow table or something
+// (https://duckdb.org/docs/stable/guides/python/sql_on_arrow.html) and then
+// have DuckDB import from that.
+func createResultsTable(sqlDB *sql.DB, falbaDB *db.DB) error {
 	// AFAICS there's no way to dynamically create column or STRUCT schemata
 	// without being vulnerable to SQL injection. There's no real security issue
 	// here but to avoid really confusing things happening, just require all the
@@ -131,7 +123,10 @@ func doMain() error {
 	if _, err := sqlDB.Exec(query); err != nil {
 		return fmt.Errorf("could not create table users: %s", err.Error())
 	}
+	return nil
+}
 
+func insertResults(sqlDB *sql.DB, falbaDB *db.DB) error {
 	// We have to do sketchy codegen anyway, but it's still worth trying to do
 	// as much as possible with a prepared statement since that at least deals
 	// with proper quoting for you.
@@ -169,6 +164,29 @@ func doMain() error {
 		if _, err := insertStmt.Exec(args...); err != nil {
 			return fmt.Errorf("failed to create row: %v", err)
 		}
+	}
+	return nil
+}
+
+func doMain() error {
+	flag.Parse()
+
+	falbaDB, err := db.ReadDB(*resultDBFlag)
+	if err != nil {
+		return fmt.Errorf("opening Falba DB: %v", err)
+	}
+
+	sqlDB, err := sql.Open("duckdb", "")
+	if err != nil {
+		return fmt.Errorf("couldn't open DuckDB: %v", err)
+	}
+
+	if err := createResultsTable(sqlDB, falbaDB); err != nil {
+		return fmt.Errorf("creating results SQL table: %w", err)
+	}
+
+	if err := insertResults(sqlDB, falbaDB); err != nil {
+		return fmt.Errorf("inserting results int SQL table: %w", err)
 	}
 
 	rows, err := sqlDB.Query("SELECT * FROM results")
