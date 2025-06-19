@@ -45,7 +45,7 @@ func createResultsTable(sqlDB *sql.DB, falbaDB *db.DB) error {
 		}
 		structFields = append(structFields, fmt.Sprintf("%s %s", name, falbaType.SQL()))
 	}
-	query := fmt.Sprintf(`CREATE TABLE results (test_name STRING, id STRING, facts STRUCT(%s))`,
+	query := fmt.Sprintf(`CREATE OR REPLACE TABLE results (test_name STRING, id STRING, facts STRUCT(%s))`,
 		strings.Join(structFields, ", "))
 	if _, err := sqlDB.Exec(query); err != nil {
 		return fmt.Errorf("could not create table users: %s", err.Error())
