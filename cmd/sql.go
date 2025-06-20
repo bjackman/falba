@@ -23,6 +23,11 @@ var (
 	flagDuckdbCli string
 
 	duckDBPath string = "falba.duckdb"
+
+	createResultsSQL = `
+		CREATE OR REPLACE TABLE results
+		AS SELECT * FROM read_json(?, format='array')
+	`
 )
 
 func createResultsTable(sqlDB *sql.DB, falbaDB *db.DB) error {
@@ -42,10 +47,11 @@ func createResultsTable(sqlDB *sql.DB, falbaDB *db.DB) error {
 	}
 	f.Close()
 
-	query := fmt.Sprintf(`
-		CREATE OR REPLACE TABLE results
-		AS SELECT * FROM read_json('%s', format='array')`, f.Name())
-	if _, err := sqlDB.Exec(query); err != nil {
+	stmt, err := sqlDB.Prepare(createResultsSQL)
+	if err != nil {
+		return fmt.Errorf("prepareing statement to create results table: %w", err)
+	}
+	if _, err := stmt.Exec(f.Name()); err != nil {
 		return fmt.Errorf("could not create results table: %s", err.Error())
 	}
 	return nil
