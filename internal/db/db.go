@@ -24,12 +24,22 @@ type DB struct {
 	FactTypes map[string]falba.ValueType
 }
 
-// Serializable returns a representation of the results in the DB that can be
-// marshalled as JSON or whatever.
-func (d *DB) SerializableResults() []map[string]any {
+// ForResultsTable aggregates the ForResultsTable method of the results in the
+// DB.
+func (d *DB) ForResultsTable() []map[string]any {
 	var ret []map[string]any
 	for _, r := range d.Results {
-		ret = append(ret, r.Serializable())
+		ret = append(ret, r.ForResultsTable())
+	}
+	return ret
+}
+
+// ForMetricsTable aggregates the ForMetricsTable method of the results in the
+// DB.
+func (d *DB) ForMetricsTable() []map[string]any {
+	var ret []map[string]any
+	for _, r := range d.Results {
+		ret = append(ret, r.ForMetricsTable()...)
 	}
 	return ret
 }

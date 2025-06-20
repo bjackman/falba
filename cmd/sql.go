@@ -28,18 +28,23 @@ var (
 		CREATE OR REPLACE TABLE results
 		AS SELECT * FROM read_json(?, format='array')
 	`
+	createMetricsSQL = `
+		CREATE OR REPLACE TABLE metrics
+		AS SELECT * FROM read_json(?, format='array')
+	`
 )
 
-func createResultsTable(sqlDB *sql.DB, falbaDB *db.DB) error {
-	resultsJSON, err := json.Marshal(falbaDB.SerializableResults())
+// Er, I can't really explain this function except by translating the whole code
+// to English. You'll just have to read it.
+func feedJSONToStmt(sqlDB *sql.DB, query string, obj any) error {
+	resultsJSON, err := json.Marshal(obj)
 	if err != nil {
-		return fmt.Errorf("marshalling results to JSON: %w", err)
+		return fmt.Errorf("marshalling to JSON: %w", err)
 	}
 
-	// TODO: Must be a better way to do this than writing it to disk..
 	f, err := os.CreateTemp("", "results.json")
 	if err != nil {
-		return fmt.Errorf("creating tempfile for results JSON: %w", err)
+		return fmt.Errorf("creating tempfile for JSON: %w", err)
 	}
 	defer os.Remove(f.Name())
 	if _, err := f.Write(resultsJSON); err != nil {
@@ -47,13 +52,27 @@ func createResultsTable(sqlDB *sql.DB, falbaDB *db.DB) error {
 	}
 	f.Close()
 
-	stmt, err := sqlDB.Prepare(createResultsSQL)
+	stmt, err := sqlDB.Prepare(query)
 	if err != nil {
-		return fmt.Errorf("prepareing statement to create results table: %w", err)
+		return fmt.Errorf("preparing SQL statement: %w", err)
 	}
 	if _, err := stmt.Exec(f.Name()); err != nil {
 		return fmt.Errorf("could not create results table: %s", err.Error())
 	}
+	return nil
+}
+
+func createResultsTable(sqlDB *sql.DB, falbaDB *db.DB) error {
+	// TODO: Must be a better way to do this than writing it to disk..
+	err := feedJSONToStmt(sqlDB, createResultsSQL, falbaDB.ForResultsTable())
+	if err != nil {
+		return fmt.Errorf("inserting results JSON into SQL DB: %w", err)
+	}
+	err = feedJSONToStmt(sqlDB, createMetricsSQL, falbaDB.ForMetricsTable())
+	if err != nil {
+		return fmt.Errorf("inserting results JSON into SQL DB: %w", err)
+	}
+
 	return nil
 }
 

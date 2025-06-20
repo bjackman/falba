@@ -27,19 +27,41 @@ type Result struct {
 	Facts map[string]Value
 }
 
-// Serializable returns a representation of the Result that can be marshalled as
-// JSON or whatever.
-func (r *Result) Serializable() map[string]any {
+// ForResultsTable returns a representation of the Result that can be marshalled
+// as JSON or whatever, containing only the stuff that's once-per-result, i.e.
+// excluding metrics.
+func (r *Result) ForResultsTable() map[string]any {
 	facts := make(map[string]any)
 	for name, val := range r.Facts {
 		facts[name] = ValueValue(val)
 	}
-	// TODO: What about metrics?
 	return map[string]any{
 		"test_name": r.TestName,
 		"result_id": r.ResultID,
 		"facts":     facts,
 	}
+}
+
+// ForrMetricsTable is like ForResultsTable but instead it just returns the
+// metrics and the minimal key to join them against the result.
+func (r *Result) ForMetricsTable() []map[string]any {
+	var ret []map[string]any
+	for _, metric := range r.Metrics {
+		obj := map[string]any{
+			"result_id": r.ResultID,
+			"metric":    metric.Name,
+		}
+		switch metric.Value.Type() {
+		case ValueInt:
+			obj["int_value"] = metric.IntValue()
+		case ValueFloat:
+			obj["float_value"] = metric.FloatValue()
+		case ValueString:
+			obj["string_value"] = metric.StringValue()
+		}
+		ret = append(ret, obj)
+	}
+	return ret
 }
 
 // An Artifact is a file in the database, associated with a Result.
