@@ -24,6 +24,16 @@ type DB struct {
 	FactTypes map[string]falba.ValueType
 }
 
+// Serializable returns a representation of the results in the DB that can be
+// marshalled as JSON or whatever.
+func (d *DB) SerializableResults() []map[string]any {
+	var ret []map[string]any
+	for _, r := range d.Results {
+		ret = append(ret, r.Serializable())
+	}
+	return ret
+}
+
 func isDir(path string) (bool, error) {
 	info, err := os.Stat(path)
 	if err != nil {

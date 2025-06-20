@@ -2,14 +2,12 @@ package cmd
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
-	"maps"
 	"os"
 	"os/exec"
 	"regexp"
-	"slices"
-	"strings"
 	"syscall"
 
 	"github.com/bjackman/falba/internal/db"
@@ -27,67 +25,28 @@ var (
 	duckDBPath string = "falba.duckdb"
 )
 
-// TODO: Instead of this janky SQL codegen we should just give the Falba DB
-// logic to generate an Arrow table or something
-// (https://duckdb.org/docs/stable/guides/python/sql_on_arrow.html) and then
-// have DuckDB import from that.
 func createResultsTable(sqlDB *sql.DB, falbaDB *db.DB) error {
-	// AFAICS there's no way to dynamically create column or STRUCT schemata
-	// without being vulnerable to SQL injection. There's no real security issue
-	// here but to avoid really confusing things happening, just require all the
-	// fact names to obviously be valid SQL identifiers. Probably we can be more
-	// relaxed about this but I CBA to research it.
-	var structFields []string
-	for name, falbaType := range falbaDB.FactTypes {
-		if !sqlColumnRE.MatchString(name) {
-			return fmt.Errorf("column name %q doesn't match %v, can't use as SQL column name",
-				name, sqlColumnRE)
-		}
-		structFields = append(structFields, fmt.Sprintf("%s %s", name, falbaType.SQL()))
-	}
-	query := fmt.Sprintf(`CREATE OR REPLACE TABLE results (test_name STRING, id STRING, facts STRUCT(%s))`,
-		strings.Join(structFields, ", "))
-	if _, err := sqlDB.Exec(query); err != nil {
-		return fmt.Errorf("could not create table users: %s", err.Error())
-	}
-	return nil
-}
-
-func insertResults(sqlDB *sql.DB, falbaDB *db.DB) error {
-	// We have to do sketchy codegen anyway, but it's still worth trying to do
-	// as much as possible with a prepared statement since that at least deals
-	// with proper quoting for you.
-	var b strings.Builder
-	b.WriteString(`INSERT INTO results(test_name, id, facts) VALUES(?, ?, struct_pack(`)
-	factNames := slices.Sorted(maps.Keys(falbaDB.FactTypes))
-	for i, name := range factNames {
-		b.WriteString(fmt.Sprintf("%s := ?", name))
-		if i < len(factNames)-1 {
-			b.WriteString(", ")
-		}
-	}
-	b.WriteString(`))`)
-	insertStmt, err := sqlDB.Prepare(b.String())
+	resultsJSON, err := json.Marshal(falbaDB.SerializableResults())
 	if err != nil {
-		return fmt.Errorf("preparing insert statement: %v", err)
+		return fmt.Errorf("marshalling results to JSON: %w", err)
 	}
 
-	for _, result := range falbaDB.Results {
-		args := []any{result.TestName, result.ResultID}
-		for _, factName := range factNames {
-			// Explicitly check for fact presence to ensure we can set it to
-			// NULL in the SQL, instead of the Go zero value, which would be
-			// confusing.
-			val, ok := result.Facts[factName]
-			if ok {
-				args = append(args, val.SQLValue())
-			} else {
-				args = append(args, falbaDB.FactTypes[factName].SQLNull())
-			}
-		}
-		if _, err := insertStmt.Exec(args...); err != nil {
-			return fmt.Errorf("failed to create row: %v", err)
-		}
+	// TODO: Must be a better way to do this than writing it to disk..
+	f, err := os.CreateTemp("", "results.json")
+	if err != nil {
+		return fmt.Errorf("creating tempfile for results JSON: %w", err)
+	}
+	defer os.Remove(f.Name())
+	if _, err := f.Write(resultsJSON); err != nil {
+		return fmt.Errorf("writing results JSON to tempfile: %w", err)
+	}
+	f.Close()
+
+	query := fmt.Sprintf(`
+		CREATE OR REPLACE TABLE results
+		AS SELECT * FROM read_json('%s', format='array')`, f.Name())
+	if _, err := sqlDB.Exec(query); err != nil {
+		return fmt.Errorf("could not create results table: %s", err.Error())
 	}
 	return nil
 }
@@ -105,10 +64,6 @@ func setupSQL() error {
 
 	if err := createResultsTable(sqlDB, falbaDB); err != nil {
 		return fmt.Errorf("creating results SQL table: %w", err)
-	}
-
-	if err := insertResults(sqlDB, falbaDB); err != nil {
-		return fmt.Errorf("inserting results int SQL table: %w", err)
 	}
 
 	return nil

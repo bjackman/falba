@@ -2,8 +2,6 @@
 package falba
 
 import (
-	"database/sql"
-	"database/sql/driver"
 	"fmt"
 	"io"
 	"os"
@@ -27,6 +25,21 @@ type Result struct {
 	// factors that are "environmental". That is, these are the "inputs" of the
 	// experiment.
 	Facts map[string]Value
+}
+
+// Serializable returns a representation of the Result that can be marshalled as
+// JSON or whatever.
+func (r *Result) Serializable() map[string]any {
+	facts := make(map[string]any)
+	for name, val := range r.Facts {
+		facts[name] = ValueValue(val)
+	}
+	// TODO: What about metrics?
+	return map[string]any{
+		"test_name": r.TestName,
+		"result_id": r.ResultID,
+		"facts":     facts,
+	}
 }
 
 // An Artifact is a file in the database, associated with a Result.
@@ -79,34 +92,6 @@ func ParseValueType(s string) (ValueType, error) {
 	}
 }
 
-func (t ValueType) SQL() string {
-	switch t {
-	case ValueInt:
-		return "INT64"
-	case ValueFloat:
-		return "FLOAT"
-	case ValueString:
-		return "STRING"
-	default:
-		panic(fmt.Sprintf("unknown value type %d", t))
-	}
-}
-
-// Return a NULL value of this type, prepared for insertion into an SQL table.
-// This is kinda awkward because you cannot have a typed and nil falba Value.
-func (t ValueType) SQLNull() driver.Valuer {
-	switch t {
-	case ValueInt:
-		return sql.NullInt64{}
-	case ValueFloat:
-		return sql.NullFloat64{}
-	case ValueString:
-		return sql.NullString{}
-	default:
-		panic(fmt.Sprintf("unknown value type %d", t))
-	}
-}
-
 // A Value is a value that can be stored as a Fact or a Metric.
 type Value interface {
 	// Type returns the type of the value, telling you which per-type method you
@@ -115,7 +100,6 @@ type Value interface {
 	IntValue() int64
 	FloatValue() float64
 	StringValue() string
-	SQLValue() driver.Valuer
 }
 
 type IntValue struct {
@@ -138,10 +122,6 @@ func (v *IntValue) StringValue() string {
 	return ""
 }
 
-func (v *IntValue) SQLValue() driver.Valuer {
-	return sql.NullInt64{Valid: true, Int64: v.Value}
-}
-
 type FloatValue struct {
 	Value float64
 }
@@ -160,10 +140,6 @@ func (v *FloatValue) FloatValue() float64 {
 
 func (v *FloatValue) StringValue() string {
 	return ""
-}
-
-func (v *FloatValue) SQLValue() driver.Valuer {
-	return sql.NullFloat64{Valid: true, Float64: v.Value}
 }
 
 type StringValue struct {
@@ -186,8 +162,17 @@ func (v *StringValue) StringValue() string {
 	return v.Value
 }
 
-func (v *StringValue) SQLValue() driver.Valuer {
-	return sql.NullString{Valid: true, String: v.Value}
+func ValueValue(v Value) any {
+	switch v.Type() {
+	case ValueInt:
+		return v.IntValue()
+	case ValueFloat:
+		return v.FloatValue()
+	case ValueString:
+		return v.StringValue()
+	default:
+		panic(fmt.Sprintf("Unknown value type %v", v.Type()))
+	}
 }
 
 func ParseValue(s string, t ValueType) (Value, error) {
