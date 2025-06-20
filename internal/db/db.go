@@ -2,6 +2,7 @@
 package db
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +16,17 @@ import (
 	"github.com/bjackman/falba/internal/parser"
 )
 
+var (
+	createResultsSQL = `
+		CREATE OR REPLACE TABLE results
+		AS SELECT * FROM read_json(?, format='array')
+	`
+	createMetricsSQL = `
+		CREATE OR REPLACE TABLE metrics
+		AS SELECT * FROM read_json(?, format='array')
+	`
+)
+
 // A DB is a collection of results read from a directory. Each entry in the
 // directory is of the format $test_name:$test_id. It contains a directory
 // called artifacts/ which contains the artifacts.
@@ -24,24 +36,56 @@ type DB struct {
 	FactTypes map[string]falba.ValueType
 }
 
-// ForResultsTable aggregates the ForResultsTable method of the results in the
-// DB.
-func (d *DB) ForResultsTable() []map[string]any {
-	var ret []map[string]any
-	for _, r := range d.Results {
-		ret = append(ret, r.ForResultsTable())
+// Er, I can't really explain this function except by translating the whole code
+// to English. You'll just have to read it.
+func feedJSONToStmt(sqlDB *sql.DB, query string, obj any) error {
+	resultsJSON, err := json.Marshal(obj)
+	if err != nil {
+		return fmt.Errorf("marshalling to JSON: %w", err)
 	}
-	return ret
+
+	f, err := os.CreateTemp("", "results.json")
+	if err != nil {
+		return fmt.Errorf("creating tempfile for JSON: %w", err)
+	}
+	defer os.Remove(f.Name())
+	if _, err := f.Write(resultsJSON); err != nil {
+		return fmt.Errorf("writing results JSON to tempfile: %w", err)
+	}
+	f.Close()
+
+	stmt, err := sqlDB.Prepare(query)
+	if err != nil {
+		return fmt.Errorf("preparing SQL statement: %w", err)
+	}
+	if _, err := stmt.Exec(f.Name()); err != nil {
+		return fmt.Errorf("could not create results table: %s", err.Error())
+	}
+	return nil
 }
 
-// ForMetricsTable aggregates the ForMetricsTable method of the results in the
-// DB.
-func (d *DB) ForMetricsTable() []map[string]any {
-	var ret []map[string]any
+// Insert a 'results' and a 'metrics' table into the SQL database, which
+// probably only works for DuckDB.
+func (d *DB) InsertIntoDuckDB(sqlDB *sql.DB) error {
+	var resultsRows []map[string]any
 	for _, r := range d.Results {
-		ret = append(ret, r.ForMetricsTable()...)
+		resultsRows = append(resultsRows, r.ForResultsTable())
 	}
-	return ret
+	err := feedJSONToStmt(sqlDB, createResultsSQL, resultsRows)
+	if err != nil {
+		return fmt.Errorf("inserting results JSON into SQL DB: %w", err)
+	}
+
+	var metricsRows []map[string]any
+	for _, r := range d.Results {
+		metricsRows = append(metricsRows, r.ForMetricsTable()...)
+	}
+	err = feedJSONToStmt(sqlDB, createMetricsSQL, metricsRows)
+	if err != nil {
+		return fmt.Errorf("inserting metrics JSON into SQL DB: %w", err)
+	}
+
+	return nil
 }
 
 func isDir(path string) (bool, error) {

@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -23,58 +22,7 @@ var (
 	flagDuckdbCli string
 
 	duckDBPath string = "falba.duckdb"
-
-	createResultsSQL = `
-		CREATE OR REPLACE TABLE results
-		AS SELECT * FROM read_json(?, format='array')
-	`
-	createMetricsSQL = `
-		CREATE OR REPLACE TABLE metrics
-		AS SELECT * FROM read_json(?, format='array')
-	`
 )
-
-// Er, I can't really explain this function except by translating the whole code
-// to English. You'll just have to read it.
-func feedJSONToStmt(sqlDB *sql.DB, query string, obj any) error {
-	resultsJSON, err := json.Marshal(obj)
-	if err != nil {
-		return fmt.Errorf("marshalling to JSON: %w", err)
-	}
-
-	f, err := os.CreateTemp("", "results.json")
-	if err != nil {
-		return fmt.Errorf("creating tempfile for JSON: %w", err)
-	}
-	defer os.Remove(f.Name())
-	if _, err := f.Write(resultsJSON); err != nil {
-		return fmt.Errorf("writing results JSON to tempfile: %w", err)
-	}
-	f.Close()
-
-	stmt, err := sqlDB.Prepare(query)
-	if err != nil {
-		return fmt.Errorf("preparing SQL statement: %w", err)
-	}
-	if _, err := stmt.Exec(f.Name()); err != nil {
-		return fmt.Errorf("could not create results table: %s", err.Error())
-	}
-	return nil
-}
-
-func createResultsTable(sqlDB *sql.DB, falbaDB *db.DB) error {
-	// TODO: Must be a better way to do this than writing it to disk..
-	err := feedJSONToStmt(sqlDB, createResultsSQL, falbaDB.ForResultsTable())
-	if err != nil {
-		return fmt.Errorf("inserting results JSON into SQL DB: %w", err)
-	}
-	err = feedJSONToStmt(sqlDB, createMetricsSQL, falbaDB.ForMetricsTable())
-	if err != nil {
-		return fmt.Errorf("inserting results JSON into SQL DB: %w", err)
-	}
-
-	return nil
-}
 
 func setupSQL() error {
 	falbaDB, err := db.ReadDB(flagResultDB)
@@ -87,7 +35,7 @@ func setupSQL() error {
 		return fmt.Errorf("couldn't open DuckDB: %v", err)
 	}
 
-	if err := createResultsTable(sqlDB, falbaDB); err != nil {
+	if err := falbaDB.InsertIntoDuckDB(sqlDB); err != nil {
 		return fmt.Errorf("creating results SQL table: %w", err)
 	}
 
