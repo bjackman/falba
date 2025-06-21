@@ -76,6 +76,7 @@ func cmdCmp(cmd *cobra.Command, args []string) error {
 		log.Printf("Failed SQL query: %v", query)
 		return fmt.Errorf("executing group-by query: %v", err)
 	}
+	defer rows.Close()
 	for rows.Next() {
 		// Rows.Scan stringifies stuff so for now it seems  we can get away with
 		// just using string vars here. I think the next step up would be to
