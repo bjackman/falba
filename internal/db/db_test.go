@@ -107,7 +107,6 @@ func TestReadDB_DuplicateFactInResult(t *testing.T) {
 		t.Fatalf("Failed to create artifacts dir: %v", err)
 	}
 
-	// Create two artifact files that will be picked up by respective parsers
 	if err := os.WriteFile(filepath.Join(artifactsDir, "file1.txt"), []byte("content1"), 0644); err != nil {
 		t.Fatalf("Failed to write file1.txt: %v", err)
 	}
@@ -120,11 +119,9 @@ func TestReadDB_DuplicateFactInResult(t *testing.T) {
 		t.Fatalf("Expected ReadDB to return an error for duplicate fact production, but got nil")
 	}
 
-	// The error message is "parser %s produced fact %q, but that was already produced by parser %s"
-	// The current implementation hardcodes the second parser name in the error to "foo"
-	// We'll check for the core part of the message.
-	if !strings.Contains(err.Error(), "produced fact \"duplicate_fact\", but that was already produced by parser") {
-		t.Errorf("Expected error to mention duplicate fact 'duplicate_fact', got: %v", err)
+	wantMsg := `produced fact "duplicate_fact", but that was already produced by parser parser_file1`
+	if !strings.Contains(err.Error(), wantMsg) {
+		t.Errorf("Expected error to contain %q, got: %v", wantMsg, err)
 	}
 }
 

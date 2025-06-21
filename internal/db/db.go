@@ -161,7 +161,7 @@ func readResult(resultDir string, parsers []*parser.Parser) (*falba.Result, erro
 				if _, ok := facts[name]; ok {
 					return nil, fmt.Errorf("parser %s produced fact %q, but that was already produced by parser %s", parzer, name, factToParser[name])
 				}
-				factToParser[name] = "foo"
+				factToParser[name] = parzer.Name
 				facts[name] = fact
 			}
 
