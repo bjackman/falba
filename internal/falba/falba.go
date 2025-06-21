@@ -71,14 +71,7 @@ func (r *Result) ForMetricsTable() []map[string]any {
 			"result_id": r.ResultID,
 			"metric":    metric.Name,
 		}
-		switch metric.Value.Type() {
-		case ValueInt:
-			obj["int_value"] = metric.IntValue()
-		case ValueFloat:
-			obj["float_value"] = metric.FloatValue()
-		case ValueString:
-			obj["string_value"] = metric.StringValue()
-		}
+		obj[metric.Value.Type().MetricsColumn()] = ValueValue(metric.Value)
 		ret = append(ret, obj)
 	}
 	return ret
@@ -119,6 +112,12 @@ func (t ValueType) String() string {
 	default:
 		panic(fmt.Sprintf("Invalid ValueType %d", t))
 	}
+}
+
+// Metrics column returns the name of the column that's used to store metrics of
+// this type in the metric table.
+func (t ValueType) MetricsColumn() string {
+	return fmt.Sprintf("%s_value", t)
 }
 
 func ParseValueType(s string) (ValueType, error) {
