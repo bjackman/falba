@@ -1,51 +1,24 @@
 package cmd
 
 import (
-	"database/sql"
-	"fmt"
 	"log"
 	"os"
 	"os/exec"
-	"regexp"
 	"syscall"
 
-	"github.com/bjackman/falba/internal/db"
 	"github.com/spf13/cobra"
 
 	_ "github.com/marcboeker/go-duckdb"
 )
 
 var (
-	// At least one letter, followed by alphanumerics and underscores.
-	sqlColumnRE = regexp.MustCompile(`[A-Za-z]+[A-Za-z0-9_]*`)
-
 	flagDuckdbCli string
-
-	duckDBPath string = "falba.duckdb"
 )
-
-func setupSQL() error {
-	falbaDB, err := db.ReadDB(flagResultDB)
-	if err != nil {
-		return fmt.Errorf("opening Falba DB: %v", err)
-	}
-
-	sqlDB, err := sql.Open("duckdb", duckDBPath)
-	if err != nil {
-		return fmt.Errorf("couldn't open DuckDB: %v", err)
-	}
-
-	if err := falbaDB.InsertIntoDuckDB(sqlDB); err != nil {
-		return fmt.Errorf("creating results SQL table: %w", err)
-	}
-
-	return nil
-}
 
 // Here we don't use proper error handling because we are going to exec the
 // DuckDB CLI so defer etc won't work.
 func cmdSQL(cmd *cobra.Command, args []string) {
-	if err := setupSQL(); err != nil {
+	if _, err := setupSQL(); err != nil {
 		log.Fatalf("Setting up SQL DB: %v", err)
 	}
 
