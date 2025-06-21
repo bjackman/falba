@@ -14,22 +14,22 @@ var (
 	duckDBPath   string = "falba.duckdb"
 )
 
-func setupSQL() (*sql.DB, error) {
+func setupSQL() (*db.DB, *sql.DB, error) {
 	falbaDB, err := db.ReadDB(flagResultDB)
 	if err != nil {
-		return nil, fmt.Errorf("opening Falba DB: %v", err)
+		return nil, nil, fmt.Errorf("opening Falba DB: %v", err)
 	}
 
 	sqlDB, err := sql.Open("duckdb", duckDBPath)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't open DuckDB: %v", err)
+		return nil, nil, fmt.Errorf("couldn't open DuckDB: %v", err)
 	}
 
 	if err := falbaDB.InsertIntoDuckDB(sqlDB); err != nil {
-		return nil, fmt.Errorf("creating results SQL table: %w", err)
+		return nil, nil, fmt.Errorf("creating results SQL table: %w", err)
 	}
 
-	return sqlDB, nil
+	return falbaDB, sqlDB, nil
 }
 
 // rootCmd represents the base command when called without any subcommands

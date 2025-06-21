@@ -18,7 +18,7 @@ var (
 // Here we don't use proper error handling because we are going to exec the
 // DuckDB CLI so defer etc won't work.
 func cmdSQL(cmd *cobra.Command, args []string) {
-	if _, err := setupSQL(); err != nil {
+	if _, _, err := setupSQL(); err != nil {
 		log.Fatalf("Setting up SQL DB: %v", err)
 	}
 
