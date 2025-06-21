@@ -152,11 +152,8 @@ func TestReadDB_MissingArtifactsDir(t *testing.T) {
 		t.Fatalf("Expected ReadDB to return an error when artifacts/ dir is missing, but got nil")
 	}
 
-	// filepath.WalkDir returns an error if the root path does not exist.
-	// The error message includes "no such file or directory" or similar OS-dependent message.
-	// We check for "walking artifacts/ dir" which is part of the error message from readResult.
-	if !strings.Contains(err.Error(), "walking artifacts/ dir") {
-		t.Errorf("Expected error to mention 'walking artifacts/ dir', got: %v", err)
+	if !strings.Contains(err.Error(), "no such file or directory") {
+		t.Errorf("Expected error to contain 'no such file or directory', got: %v", err)
 	}
 }
 
