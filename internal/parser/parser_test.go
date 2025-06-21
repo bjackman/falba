@@ -299,6 +299,18 @@ OTHER_VAR=foo
 			parser:  mustNewShellvarParser(t, "MY_VAR", "my_fact", falba.ValueString),
 			want:    &falba.StringValue{Value: `'value\\'`}, // strconv.Unquote fails, returns raw
 		},
+		{
+			desc:    "variable not found",
+			content: "OTHER_VAR=foo",
+			parser:  mustNewShellvarParser(t, "MY_VAR", "my_fact", falba.ValueString),
+			want:    nil,
+		},
+		{
+			desc:    "empty file - var not found",
+			content: "",
+			parser:  mustNewShellvarParser(t, "MY_VAR", "my_fact", falba.ValueString),
+			want:    nil,
+		},
 	}
 
 	for _, tc := range happyPathTestCases {
@@ -333,18 +345,8 @@ OTHER_VAR=foo
 		expectError bool // True if any error, if false, means ErrParseFailure from Extract
 	}{
 		{
-			desc:    "variable not found",
-			content: "OTHER_VAR=foo",
-			parser:  mustNewShellvarParser(t, "MY_VAR", "my_fact", falba.ValueString),
-		},
-		{
 			desc:    "malformed line (no equals) - var not found",
 			content: "MY_VAR value", // Line is skipped, MY_VAR not found by that name.
-			parser:  mustNewShellvarParser(t, "MY_VAR", "my_fact", falba.ValueString),
-		},
-		{
-			desc:    "empty file - var not found",
-			content: "",
 			parser:  mustNewShellvarParser(t, "MY_VAR", "my_fact", falba.ValueString),
 		},
 		{
