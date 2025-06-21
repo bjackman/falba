@@ -160,6 +160,7 @@ func (p *RegexpExtractor) String() string {
 
 type JSONPathExtractor struct {
 	resultType falba.ValueType
+	expression string
 	selector   *gval.Evaluable
 }
 
@@ -170,6 +171,7 @@ func NewJSONPathExtractor(expr string, resultType falba.ValueType) (*JSONPathExt
 	}
 	return &JSONPathExtractor{
 		selector:   &selector,
+		expression: expr,
 		resultType: resultType,
 	}, nil
 }
@@ -208,7 +210,7 @@ func (e *JSONPathExtractor) Extract(artifact *falba.Artifact) (falba.Value, erro
 }
 
 func (p *JSONPathExtractor) String() string {
-	return fmt.Sprintf("JSONPathParser{%v -> %v}", p.selector, p.resultType)
+	return fmt.Sprintf("JSONPathParser{%q -> %v}", p.expression, p.resultType)
 }
 
 type BaseParserConfig struct {
