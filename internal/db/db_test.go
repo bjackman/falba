@@ -259,7 +259,8 @@ func TestReadDB_ConflictingTypes(t *testing.T) {
 		t.Fatalf("Failed to write parsers.json: %v", err)
 	}
 
-	// Create a dummy result directory to avoid errors about missing results, though it's not strictly necessary for this specific bug
+	// Create a dummy result directory to avoid errors about missing results,
+	// though it's not strictly necessary for this specific bug.
 	dummyResultDir := filepath.Join(tempDir, "test_result:123")
 	if err := os.Mkdir(dummyResultDir, 0755); err != nil {
 		t.Fatalf("Failed to create dummy result dir: %v", err)
@@ -281,23 +282,28 @@ func TestReadDB_ConflictingTypes(t *testing.T) {
 	if err == nil {
 		t.Errorf("Expected ReadDB to return an error due to conflicting types, but got nil")
 	} else {
-		// We expect an error, but because of the bug, it might not be the specific error we're looking for.
-		// The key is that *an* error related to type conflict should eventually be caught if the bug were fixed.
-		// For now, we're testing that the current buggy implementation does NOT error out here as it should.
-		// So, if the bug is present, this test will fail because `err` will be `nil`.
-		// Once the bug is fixed, this test should pass because `err` will be non-nil and contain the expected message.
+		// We expect an error, but because of the bug, it might not be the
+		// specific error we're looking for. The key is that *an* error related
+		// to type conflict should eventually be caught if the bug were fixed.
+		// For now, we're testing that the current buggy implementation does NOT
+		// error out here as it should. So, if the bug is present, this test
+		// will fail because `err` will be `nil`. Once the bug is fixed, this
+		// test should pass because `err` will be non-nil and contain the
+		// expected message.
 
-		// To make this test *detect* the bug (i.e. fail when the bug is present),
-		// we assert that NO error is returned by the current buggy code.
-		// If the bug were fixed, an error *would* be returned, and this assertion would fail.
-		// This seems counter-intuitive, but the request is to write a test that *detects* the bug.
-		// A test detects a bug if it fails when the bug is present and passes when it's fixed.
+		// To make this test *detect* the bug (i.e. fail when the bug is
+		// present), we assert that NO error is returned by the current buggy
+		// code. If the bug were fixed, an error *would* be returned, and this
+		// assertion would fail. This seems counter-intuitive, but the request
+		// is to write a test that *detects* the bug. A test detects a bug if it
+		// fails when the bug is present and passes when it's fixed.
 
-		// However, the prompt states "The test should expect ReadDB to return an error".
-		// This means the test should be written as if the bug was NOT there.
-		// So, if the bug is present (allTypes not updated), ReadDB will NOT return an error, and the test will fail.
-		// This is the correct interpretation.
-		// A more general check if the exact parser name/order is not guaranteed:
+		// However, the prompt states "The test should expect ReadDB to return
+		// an error". This means the test should be written as if the bug was
+		// NOT there. So, if the bug is present (allTypes not updated), ReadDB
+		// will NOT return an error, and the test will fail. This is the correct
+		// interpretation. A more general check if the exact parser name/order
+		// is not guaranteed:
 		if !strings.Contains(err.Error(), "produced fact/metric \"shared_name\" of type") || !strings.Contains(err.Error(), "but another outputs this as") {
 			t.Errorf("Expected error to contain type mismatch for 'shared_name', got: %v", err)
 		}
