@@ -9,6 +9,15 @@
                 "type": "string"
             }
         },
+        "variant": {
+            "type": "shellvar",
+            "artifact_regexp": "etc_os-release",
+            "var": "VARIANT_ID",
+            "fact": {
+                "name": "variant",
+                "type": "string"
+            }
+        },
         "ext4_iops": {
             "type": "jsonpath",
             "artifact_regexp": "fio_output_ext4_\\d+\\.json",
