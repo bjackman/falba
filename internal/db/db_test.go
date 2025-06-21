@@ -322,6 +322,11 @@ func TestReadDB_InvalidResultDirName(t *testing.T) {
 			if err := os.Mkdir(resultDir, 0755); err != nil {
 				t.Fatalf("Failed to create result dir %s: %v", tc.dirName, err)
 			}
+			t.Cleanup(func() {
+				if err := os.RemoveAll(resultDir); err != nil {
+					t.Logf("Warning: failed to remove result dir %s: %v", resultDir, err)
+				}
+			})
 			if err := os.Mkdir(filepath.Join(resultDir, "artifacts"), 0755); err != nil {
 				t.Fatalf("Failed to create artifacts dir in %s: %v", resultDir, err)
 			}
@@ -332,9 +337,6 @@ func TestReadDB_InvalidResultDirName(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), tc.expectedError) {
 				t.Errorf("Expected error for dir %s to contain '%s', got: %v", tc.dirName, tc.expectedError, err)
-			}
-			if err := os.RemoveAll(resultDir); err != nil {
-				t.Logf("Warning: failed to remove result dir %s: %v", resultDir, err)
 			}
 		})
 	}
