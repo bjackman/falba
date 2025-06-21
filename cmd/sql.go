@@ -22,7 +22,7 @@ func cmdSQL(cmd *cobra.Command, args []string) {
 		log.Fatalf("Setting up SQL DB: %v", err)
 	}
 
-	// Apparently yhe 'exec' package doesn't actually support exec-ing lol.
+	// Apparently the 'exec' package doesn't actually support exec-ing lol.
 	// I got this from https://gobyexample.com/execing-processes
 	cliPath, err := exec.LookPath(flagDuckdbCli)
 	if err != nil {
