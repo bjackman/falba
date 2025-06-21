@@ -62,7 +62,7 @@ func (r *Result) ForResultsTable() map[string]any {
 	return result
 }
 
-// ForrMetricsTable is like ForResultsTable but instead it just returns the
+// ForMetricsTable is like ForResultsTable but instead it just returns the
 // metrics and the minimal key to join them against the result.
 func (r *Result) ForMetricsTable() []map[string]any {
 	var ret []map[string]any
