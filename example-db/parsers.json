@@ -1,0 +1,31 @@
+{
+    "parsers": {
+        "config_rev": {
+            "type": "jsonpath",
+            "artifact_regexp": "nixos-version.json",
+            "jsonpath": "$.configurationRevision",
+            "fact": {
+                "name": "nixos_config_rev",
+                "type": "string"
+            }
+        },
+        "ext4_iops": {
+            "type": "jsonpath",
+            "artifact_regexp": "fio_output_ext4_\\d+\\.json",
+            "jsonpath": "$.jobs[?(@.jobname == \"randread_ext4\")].read.iops",
+            "metric": {
+                "name": "fio_randread_ext4_read_iops",
+                "type": "float"
+            }
+        },
+        "tmpfs_iops": {
+            "type": "jsonpath",
+            "artifact_regexp": "fio_output_tmpfs_\\d+\\.json",
+            "jsonpath": "$.jobs[?(@.jobname == \"randread_tmpfs\")].read.iops",
+            "metric": {
+                "name": "fio_randread_tmpfs_read_iops",
+                "type": "float"
+            }
+        }
+    }
+}
