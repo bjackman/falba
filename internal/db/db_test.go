@@ -123,28 +123,29 @@ func TestInsertIntoDuckDB(t *testing.T) {
 		t.Fatalf("Failed to insert into DuckDB: %v", err)
 	}
 
-	rows, err := sqlDB.Query("SELECT test_name, result_id FROM results ORDER BY test_name")
+	// Test core result columns
+	basicRows, err := sqlDB.Query("SELECT test_name, result_id FROM results ORDER BY test_name")
 	if err != nil {
-		t.Fatalf("Failed to query results: %v", err)
+		t.Fatalf("Failed to query basic results: %v", err)
 	}
-	defer rows.Close()
+	defer basicRows.Close()
 
-	var gotResults []struct {
+	var gotBasicResults []struct {
 		TestName string
 		ResultID string
 	}
-	for rows.Next() {
+	for basicRows.Next() {
 		var testName, resultID string
-		if err := rows.Scan(&testName, &resultID); err != nil {
-			t.Fatalf("Failed to scan row: %v", err)
+		if err := basicRows.Scan(&testName, &resultID); err != nil {
+			t.Fatalf("Failed to scan basic result row: %v", err)
 		}
-		gotResults = append(gotResults, struct {
+		gotBasicResults = append(gotBasicResults, struct {
 			TestName string
 			ResultID string
 		}{testName, resultID})
 	}
 
-	expectedResults := []struct {
+	expectedBasicResults := []struct {
 		TestName string
 		ResultID string
 	}{
@@ -152,8 +153,50 @@ func TestInsertIntoDuckDB(t *testing.T) {
 		{"test2", "result2"},
 	}
 
-	if diff := cmp.Diff(gotResults, expectedResults); diff != "" {
-		t.Errorf("Unexpected results (-got +want): %v", diff)
+	if diff := cmp.Diff(gotBasicResults, expectedBasicResults); diff != "" {
+		t.Errorf("Unexpected basic results (-got +want): %v", diff)
+	}
+
+	// Test fact columns
+	factRows, err := sqlDB.Query("SELECT test_name, fact1, fact2, fact3 FROM results ORDER BY test_name")
+	if err != nil {
+		t.Fatalf("Failed to query fact results: %v", err)
+	}
+	defer factRows.Close()
+
+	var gotFactResults []struct {
+		TestName string
+		Fact1    sql.NullString
+		Fact2    sql.NullInt64
+		Fact3    sql.NullString
+	}
+	for factRows.Next() {
+		var testName string
+		var fact1, fact3 sql.NullString
+		var fact2 sql.NullInt64
+		if err := factRows.Scan(&testName, &fact1, &fact2, &fact3); err != nil {
+			t.Fatalf("Failed to scan fact row: %v", err)
+		}
+		gotFactResults = append(gotFactResults, struct {
+			TestName string
+			Fact1    sql.NullString
+			Fact2    sql.NullInt64
+			Fact3    sql.NullString
+		}{testName, fact1, fact2, fact3})
+	}
+
+	expectedFactResults := []struct {
+		TestName string
+		Fact1    sql.NullString
+		Fact2    sql.NullInt64
+		Fact3    sql.NullString
+	}{
+		{"test1", sql.NullString{Valid: true, String: "value1"}, sql.NullInt64{Valid: true, Int64: 42}, sql.NullString{}},
+		{"test2", sql.NullString{}, sql.NullInt64{}, sql.NullString{Valid: true, String: "true"}},
+	}
+
+	if diff := cmp.Diff(gotFactResults, expectedFactResults); diff != "" {
+		t.Errorf("Unexpected fact results (-got +want): %v", diff)
 	}
 
 	metricsRows, err := sqlDB.Query("SELECT result_id, metric, int_value, float_value, string_value FROM metrics ORDER BY metric")
@@ -206,3 +249,4 @@ func TestInsertIntoDuckDB(t *testing.T) {
 		t.Errorf("Unexpected metrics (-got +want): %v", diff)
 	}
 }
+

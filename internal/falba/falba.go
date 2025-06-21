@@ -4,9 +4,30 @@ package falba
 import (
 	"fmt"
 	"io"
+	"maps"
 	"os"
+	"slices"
 	"strconv"
+	"strings"
 )
+
+var (
+	// Reserved fact names that cannot be used by parsers
+	reservedFactNames = map[string]bool{
+		"test_name": true,
+		"result_id": true,
+	}
+)
+
+// IsReservedFactName returns true if the fact name conflicts with reserved column names
+func IsReservedFactName(name string) bool {
+	return reservedFactNames[name]
+}
+
+// GetReservedFactNamesString returns a comma-separated list of reserved fact names for error messages
+func GetReservedFactNamesString() string {
+	return strings.Join(slices.Collect(maps.Keys(reservedFactNames)), ", ")
+}
 
 // A Result is the outcome of running some test. The exact scope of this is up
 // to the user to decide. The only constraint is that any given Fact can only
@@ -29,17 +50,16 @@ type Result struct {
 
 // ForResultsTable returns a representation of the Result that can be marshalled
 // as JSON or whatever, containing only the stuff that's once-per-result, i.e.
-// excluding metrics.
+// excluding metrics. Facts are flattened as direct columns.
 func (r *Result) ForResultsTable() map[string]any {
-	facts := make(map[string]any)
-	for name, val := range r.Facts {
-		facts[name] = ValueValue(val)
-	}
-	return map[string]any{
+	result := map[string]any{
 		"test_name": r.TestName,
 		"result_id": r.ResultID,
-		"facts":     facts,
 	}
+	for name, val := range r.Facts {
+		result[name] = ValueValue(val)
+	}
+	return result
 }
 
 // ForrMetricsTable is like ForResultsTable but instead it just returns the

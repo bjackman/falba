@@ -299,6 +299,9 @@ func FromConfig(rawConfig json.RawMessage, name string) (*Parser, error) {
 			ValueType:  valueType,
 		}
 	} else if baseConfig.Fact != nil {
+		if falba.IsReservedFactName(baseConfig.Fact.Name) {
+			return nil, fmt.Errorf("fact name %q is reserved (%s)", baseConfig.Fact.Name, falba.GetReservedFactNamesString())
+		}
 		valueType, err := falba.ParseValueType(baseConfig.Fact.Type)
 		if err != nil {
 			return nil, fmt.Errorf("parsing metric type: %v", err)

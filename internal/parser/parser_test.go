@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/bjackman/falba/internal/falba"
@@ -113,6 +114,46 @@ func TestParser(t *testing.T) {
 			}
 			if diff := cmp.Diff(result.Metrics, []*falba.Metric{tc.want}); diff != "" {
 				t.Errorf("Unexpected Metrics, diff: %v", diff)
+			}
+		})
+	}
+}
+
+func TestReservedFactNamesRejected(t *testing.T) {
+	testCases := []struct {
+		name         string
+		factName     string
+		expectError  bool
+	}{
+		{"test_name reserved", "test_name", true},
+		{"result_id reserved", "result_id", true},
+		{"valid fact name", "my_fact", false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			config := `{
+				"type": "single_metric",
+				"artifact_regexp": "test_artifact",
+				"fact": {
+					"name": "` + tc.factName + `",
+					"type": "string"
+				}
+			}`
+
+			_, err := parser.FromConfig([]byte(config), "test_parser")
+
+			if tc.expectError {
+				if err == nil {
+					t.Fatalf("Expected error for reserved fact name %q, but got none", tc.factName)
+				}
+				if !strings.Contains(err.Error(), "reserved") {
+					t.Errorf("Expected error about reserved fact name, got: %v", err)
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("Unexpected error for valid fact name %q: %v", tc.factName, err)
+				}
 			}
 		})
 	}
