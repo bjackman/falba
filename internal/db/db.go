@@ -232,6 +232,7 @@ func ReadDB(rootDir string) (*DB, error) {
 		if p.Target.TargetType == parser.TargetFact {
 			factTypes[p.Target.Name] = p.Target.ValueType
 		}
+		allTypes[p.Target.Name] = p.Target.ValueType
 	}
 
 	dir, err := os.ReadDir(rootDir)
