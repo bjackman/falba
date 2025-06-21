@@ -2,12 +2,15 @@ package cmd
 
 import (
 	"bytes"
+	"database/sql"
 	"fmt"
 	"log"
 	"maps"
 	"slices"
+	"strings"
 	"text/template"
 
+	"github.com/bjackman/falba/internal/db"
 	"github.com/spf13/cobra"
 )
 
@@ -37,6 +40,90 @@ func (g *groupByTemplateArgs) Execute() (string, error) {
 	return b.String(), nil
 }
 
+// This  groups by the fact and finds groups that have more than one distinct
+// combination of the other potentially-relevant columns. If any such groups
+// exists it picks an arbitrary one of them and returns those distinct
+// combinations so they can be shown to the user as an example.
+var checkFuncDepTemplate = template.Must(
+	template.New("check-groups").Funcs(template.FuncMap{"join": strings.Join}).Parse(`
+	-- Figure out the values of the experiment fact that have multiple
+	-- subgroups.
+	WITH WithMultipleSubGroups AS (
+	 	SELECT {{ .ExperimentFact }}
+		FROM results
+		GROUP BY {{ .ExperimentFact }}
+		-- I guess you can't COUNT-DISTINCT multiple columns, so we have to
+		-- squash them into a string somehow...
+		HAVING COUNT(DISTINCT test_name || '-' || {{ join .OtherFacts ", " }}) > 1
+		-- Just need a single example, don't care which.
+		LIMIT 1
+	)
+	SELECT {{ .ExperimentFact }}, test_name, struct_pack({{ join .OtherFacts ", " }})
+	FROM results JOIN WithMultipleSubgroups USING ({{ .ExperimentFact }})
+`))
+
+type checkFuncDepTemplateArgs struct {
+	ExperimentFact string
+	OtherFacts     []string
+}
+
+func (g *checkFuncDepTemplateArgs) Execute() (string, error) {
+	var b bytes.Buffer
+	if err := checkFuncDepTemplate.Execute(&b, g); err != nil {
+		return "", err
+	}
+	return b.String(), nil
+}
+
+// Check that the other potentially-relevant attributes of the results in the
+// database are functionally dependent on the experiment fact. This basically
+// means that when you group by the experiment fact, all those other columns are
+// have the same value in all entries in each group.
+//
+// Note that the "other potentially-relevant columns" includes the test name
+// (since the exact meanings of facts and metrics are assumed to differ between
+// tests) but not the result ID (since that's basically just an arbitrary
+// grouping of data).
+func checkFunctionalDependency(sqlDB *sql.DB, falbaDB *db.DB, experimentFact string) error {
+	facts := maps.Clone(falbaDB.FactTypes)
+	delete(facts, experimentFact)
+	t := checkFuncDepTemplateArgs{
+		ExperimentFact: experimentFact,
+		OtherFacts:     slices.Collect(maps.Keys(facts)),
+	}
+	query, err := t.Execute()
+	if err != nil {
+		return fmt.Errorf("templating query: %v", err)
+	}
+	rows, err := sqlDB.Query(query)
+	if err != nil {
+		log.Printf("Failed SQL query: %v", query)
+		return fmt.Errorf("executing query: %v", err)
+	}
+	defer rows.Close()
+	processedAnyRows := false
+	for rows.Next() {
+		var factStr string
+		var testName string
+		var otherFactsStruct map[string]any
+		if err := rows.Scan(&factStr, &testName, &otherFactsStruct); err != nil {
+			return fmt.Errorf("scanning rows: %v", err)
+		}
+
+		// Hack to print header after we've already got the example problematic
+		// fact value from the first row.
+		if !processedAnyRows {
+			log.Printf("Multiple subgroups for %s = %s:\n", experimentFact, factStr)
+			processedAnyRows = true
+		}
+		log.Printf("\ttest_name = %s non-experiment facts: %s\n", testName, otherFactsStruct)
+	}
+	if !processedAnyRows {
+		return nil
+	}
+	return fmt.Errorf("fact not a determinant")
+}
+
 func cmdCmp(cmd *cobra.Command, args []string) error {
 	falbaDB, sqlDB, err := setupSQL()
 	if err != nil {
@@ -54,9 +141,9 @@ func cmdCmp(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("no fact %q (have: %v)", cmpFlagMetric, slices.Collect(maps.Keys(falbaDB.FactTypes)))
 	}
 
-	// TODO: This should detect if the groups are 'correct', i.e. if there are
-	// internal differences in any facts, or test_name. Once that's done we will
-	// need to give the user more control in order to whittle down the results.
+	if err := checkFunctionalDependency(sqlDB, falbaDB, cmpFlagFact); err != nil {
+		return fmt.Errorf("checking functional dependency: %w", err)
+	}
 
 	// Prepared statements aren't flexible enough so we are just gonna be
 	// vulnerable to SQL injection here. The rationale is that since we have
