@@ -31,9 +31,10 @@ var (
 // directory is of the format $test_name:$test_id. It contains a directory
 // called artifacts/ which contains the artifacts.
 type DB struct {
-	RootDir   string
-	Results   []*falba.Result
-	FactTypes map[string]falba.ValueType
+	RootDir     string
+	Results     []*falba.Result
+	FactTypes   map[string]falba.ValueType
+	MetricTypes map[string]falba.ValueType
 }
 
 // Er, I can't really explain this function except by translating the whole code
@@ -223,6 +224,7 @@ func ReadDB(rootDir string) (*DB, error) {
 	// While we're at it, also remember the fact types as they'll be used to
 	// construct a results tablellater.
 	factTypes := map[string]falba.ValueType{}
+	metricTypes := map[string]falba.ValueType{}
 	allTypes := map[string]falba.ValueType{}
 	for _, p := range parsers {
 		if t, ok := allTypes[p.Target.Name]; ok && p.Target.ValueType != t {
@@ -231,6 +233,8 @@ func ReadDB(rootDir string) (*DB, error) {
 		}
 		if p.Target.TargetType == parser.TargetFact {
 			factTypes[p.Target.Name] = p.Target.ValueType
+		} else {
+			metricTypes[p.Target.Name] = p.Target.ValueType
 		}
 		allTypes[p.Target.Name] = p.Target.ValueType
 	}
@@ -251,5 +255,10 @@ func ReadDB(rootDir string) (*DB, error) {
 		}
 		results = append(results, result)
 	}
-	return &DB{RootDir: rootDir, Results: results, FactTypes: factTypes}, nil
+	return &DB{
+		RootDir:     rootDir,
+		Results:     results,
+		FactTypes:   factTypes,
+		MetricTypes: metricTypes,
+	}, nil
 }
