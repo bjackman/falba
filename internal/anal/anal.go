@@ -147,7 +147,9 @@ var groupByTemplate = template.Must(template.New("group-by").Parse(`
 			equi_width_bins(0, (SELECT MAX(metric) FROM Results),
 			65,
 			nice := true)
-		) AS hist
+		) AS hist,
+		MIN(metric) AS min_val,
+		MAX(metric) AS max_val
 	FROM Results
 	GROUP BY {{.Fact}}
 `))
@@ -291,7 +293,7 @@ func GroupByFact(sqlDB *sql.DB, falbaDB *db.DB, experimentFact string, metric st
 		var groupMax float64
 		var groupMin float64
 		var histogram Histogram
-		if err := rows.Scan(&factStr, &groupMean, &histogram); err != nil {
+		if err := rows.Scan(&factStr, &groupMean, &histogram, &groupMin, &groupMax); err != nil {
 			return nil, fmt.Errorf("scanning group-by rows: %v", err)
 		}
 		ret[factStr] = &MetricGroup{
