@@ -20,6 +20,8 @@ var (
 	cmpFlagFilter string
 )
 
+// Prepared statements aren't flexible enough so we are just gonna be
+// vulnerable to SQL injection here.
 var filterResultsTemplate = template.Must(template.New("group-by").Parse(`
 	CREATE OR REPLACE TABLE filtered_results AS (
 		SELECT * FROM results WHERE {{.FilterExpression}}
@@ -48,27 +50,6 @@ func createFilteredResults(sqlDB *sql.DB) error {
 	}
 	_, err = sqlDB.Exec(query)
 	return err
-}
-
-var groupByTemplate = template.Must(template.New("group-by").Parse(`
-	SELECT {{.Fact}}, AVG(CAST({{.MetricColumn}} AS FLOAT)) as mean
-	FROM filtered_results
-	INNER JOIN metrics USING (result_id)
-	WHERE metric = '{{.Metric}}' GROUP BY {{.Fact}}
-`))
-
-type groupByTemplateArgs struct {
-	Fact         string
-	Metric       string
-	MetricColumn string
-}
-
-func (g *groupByTemplateArgs) Execute() (string, error) {
-	var b bytes.Buffer
-	if err := groupByTemplate.Execute(&b, g); err != nil {
-		return "", err
-	}
-	return b.String(), nil
 }
 
 // This  groups by the fact and finds groups that have more than one distinct
@@ -155,19 +136,82 @@ func checkFunctionalDependency(sqlDB *sql.DB, falbaDB *db.DB, experimentFact str
 	return fmt.Errorf("fact not a determinant")
 }
 
+var groupByTemplate = template.Must(template.New("group-by").Parse(`
+	SELECT {{.Fact}}, AVG(CAST({{.MetricColumn}} AS FLOAT)) as mean
+	FROM filtered_results
+	INNER JOIN metrics USING (result_id)
+	WHERE metric = '{{.Metric}}' GROUP BY {{.Fact}}
+`))
+
+type groupByTemplateArgs struct {
+	Fact         string
+	Metric       string
+	MetricColumn string
+}
+
+func (g *groupByTemplateArgs) Execute() (string, error) {
+	var b bytes.Buffer
+	if err := groupByTemplate.Execute(&b, g); err != nil {
+		return "", err
+	}
+	return b.String(), nil
+}
+
+// Group represents aggregates about metric values for some collection of
+// results.
+type MetricGroup struct {
+	// Mean of the requested metric for results with the given fact value.
+	// Note we're assuming the value is numeric here.
+	Mean float64
+}
+
+// Return a map of stringified fact values, to aggregates describing the value
+// of the metric in results where the fact has the value from the map key. Note
+// the map key should probably be a falba.Value but for now it seems like just
+// squashing it into a string is harmless enough.
+func groupByFact(sqlDB *sql.DB, falbaDB *db.DB, experimentFact string, metric string) (map[string]*MetricGroup, error) {
+	metricType, ok := falbaDB.MetricTypes[cmpFlagMetric]
+	if !ok {
+		return nil, fmt.Errorf("no metric %q (have: %v)", cmpFlagMetric, slices.Collect(maps.Keys(falbaDB.MetricTypes)))
+	}
+	t := groupByTemplateArgs{
+		Fact:         cmpFlagFact,
+		Metric:       cmpFlagMetric,
+		MetricColumn: metricType.MetricsColumn(),
+	}
+	query, err := t.Execute()
+	if err != nil {
+		return nil, fmt.Errorf("templating group-by query: %v", err)
+	}
+	rows, err := sqlDB.Query(query)
+	if err != nil {
+		log.Printf("Failed SQL query: %v", query)
+		return nil, fmt.Errorf("executing group-by query: %v", err)
+	}
+	defer rows.Close()
+	ret := make(map[string]*MetricGroup)
+	for rows.Next() {
+		// Rows.Scan stringifies stuff so for now it seems  we can get away with
+		// just using string vars here. I think the next step up would be to
+		// implement sql.Scanner for falba.Value.
+		var factStr string
+		var groupMean float64
+		if err := rows.Scan(&factStr, &groupMean); err != nil {
+			return nil, fmt.Errorf("scanning group-by rows: %v", err)
+		}
+		ret[factStr] = &MetricGroup{Mean: groupMean}
+	}
+	return ret, nil
+}
+
 func cmdCmp(cmd *cobra.Command, args []string) error {
 	falbaDB, sqlDB, err := setupSQL()
 	if err != nil {
 		log.Fatalf("Setting up SQL DB: %v", err)
 	}
 
-	metricType, ok := falbaDB.MetricTypes[cmpFlagMetric]
-	if !ok {
-		return fmt.Errorf("no metric %q (have: %v)", cmpFlagMetric, slices.Collect(maps.Keys(falbaDB.MetricTypes)))
-	}
-	// We don't care about the type but check the fact is legit too, just to
-	// avoid confusion.
-	_, ok = falbaDB.FactTypes[cmpFlagFact]
+	// Just to produce a nice error message, check the fact exists.
+	_, ok := falbaDB.FactTypes[cmpFlagFact]
 	if !ok {
 		return fmt.Errorf("no fact %q (have: %v)", cmpFlagMetric, slices.Collect(maps.Keys(falbaDB.FactTypes)))
 	}
@@ -180,35 +224,12 @@ func cmdCmp(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("checking functional dependency: %w", err)
 	}
 
-	// Prepared statements aren't flexible enough so we are just gonna be
-	// vulnerable to SQL injection here. The rationale is that since we have
-	// done some minimal validation it's hopefully pretty unlikely to do this by
-	// accident and get confused.
-	t := groupByTemplateArgs{
-		Fact:         cmpFlagFact,
-		Metric:       cmpFlagMetric,
-		MetricColumn: metricType.MetricsColumn(),
-	}
-	query, err := t.Execute()
+	groups, err := groupByFact(sqlDB, falbaDB, cmpFlagFact, cmpFlagMetric)
 	if err != nil {
-		return fmt.Errorf("templating group-by query: %v", err)
+		return fmt.Errorf("grouping by fact: %v", err)
 	}
-	rows, err := sqlDB.Query(query)
-	if err != nil {
-		log.Printf("Failed SQL query: %v", query)
-		return fmt.Errorf("executing group-by query: %v", err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		// Rows.Scan stringifies stuff so for now it seems  we can get away with
-		// just using string vars here. I think the next step up would be to
-		// implement sql.Scanner for falba.Value.
-		var factStr string
-		var groupMean float64
-		if err := rows.Scan(&factStr, &groupMean); err != nil {
-			return fmt.Errorf("scanning group-by rows: %v", err)
-		}
-		log.Printf("%s: %s - mean %s = %f", cmpFlagFact, factStr, cmpFlagMetric, groupMean)
+	for factVal, group := range groups {
+		log.Printf("%s = %s: μ = %f", cmpFlagFact, factVal, group.Mean)
 	}
 
 	return nil
