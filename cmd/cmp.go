@@ -9,6 +9,7 @@ import (
 
 	"github.com/bjackman/falba/internal/anal"
 	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/spf13/cobra"
 )
 
@@ -41,7 +42,17 @@ func cmdCmp(cmd *cobra.Command, args []string) error {
 	for factVal, group := range groups {
 		t.AppendRow(table.Row{factVal, group.Mean, group.Min, group.Histogram.PlotUnicode(), group.Max})
 	}
-	t.SetStyle(table.StyleLight)
+	t.SetStyle(table.Style{
+		Name: "mystyle",
+		Box:  table.StyleBoxLight,
+		// Needs to be set explicitly for some reason, otherwise the table
+		// boxes don't show up.
+		Options: table.OptionsDefault,
+		Format: table.FormatOptions{
+			Header: text.FormatUpper,
+			Row:    text.FormatDefault,
+		},
+	})
 	t.SortBy([]table.SortBy{{Name: cmpFlagFact, Mode: table.Asc}})
 	t.Render()
 
