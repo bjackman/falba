@@ -17,11 +17,42 @@ import (
 var (
 	cmpFlagMetric string
 	cmpFlagFact   string
+	cmpFlagFilter string
 )
+
+var filterResultsTemplate = template.Must(template.New("group-by").Parse(`
+	CREATE OR REPLACE TABLE filtered_results AS (
+		SELECT * FROM results WHERE {{.FilterExpression}}
+	);
+`))
+
+type filterResultsTemplateArgs struct {
+	FilterExpression string
+}
+
+func (g *filterResultsTemplateArgs) Execute() (string, error) {
+	var b bytes.Buffer
+	if err := filterResultsTemplate.Execute(&b, g); err != nil {
+		return "", err
+	}
+	return b.String(), nil
+}
+
+func createFilteredResults(sqlDB *sql.DB) error {
+	t := filterResultsTemplateArgs{
+		FilterExpression: cmpFlagFilter,
+	}
+	query, err := t.Execute()
+	if err != nil {
+		return fmt.Errorf("templating group-by query: %v", err)
+	}
+	_, err = sqlDB.Exec(query)
+	return err
+}
 
 var groupByTemplate = template.Must(template.New("group-by").Parse(`
 	SELECT {{.Fact}}, AVG(CAST({{.MetricColumn}} AS FLOAT)) as mean
-	FROM results
+	FROM filtered_results
 	INNER JOIN metrics USING (result_id)
 	WHERE metric = '{{.Metric}}' GROUP BY {{.Fact}}
 `))
@@ -50,7 +81,7 @@ var checkFuncDepTemplate = template.Must(
 	-- subgroups.
 	WITH WithMultipleSubGroups AS (
 	 	SELECT {{ .ExperimentFact }}
-		FROM results
+		FROM filtered_results
 		GROUP BY {{ .ExperimentFact }}
 		-- I guess you can't COUNT-DISTINCT multiple columns, so we have to
 		-- squash them into a string somehow...
@@ -59,7 +90,7 @@ var checkFuncDepTemplate = template.Must(
 		LIMIT 1
 	)
 	SELECT {{ .ExperimentFact }}, test_name, struct_pack({{ join .OtherFacts ", " }})
-	FROM results JOIN WithMultipleSubgroups USING ({{ .ExperimentFact }})
+	FROM filtered_results JOIN WithMultipleSubgroups USING ({{ .ExperimentFact }})
 `))
 
 type checkFuncDepTemplateArgs struct {
@@ -141,6 +172,10 @@ func cmdCmp(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("no fact %q (have: %v)", cmpFlagMetric, slices.Collect(maps.Keys(falbaDB.FactTypes)))
 	}
 
+	if err := createFilteredResults(sqlDB); err != nil {
+		return fmt.Errorf("filtering results: %w", err)
+	}
+
 	if err := checkFunctionalDependency(sqlDB, falbaDB, cmpFlagFact); err != nil {
 		return fmt.Errorf("checking functional dependency: %w", err)
 	}
@@ -192,4 +227,5 @@ func init() {
 	cmpCmd.MarkFlagRequired("metric")
 	cmpCmd.Flags().StringVarP(&cmpFlagFact, "fact", "f", "", "Fact to group by")
 	cmpCmd.MarkFlagRequired("fact")
+	cmpCmd.Flags().StringVarP(&cmpFlagFilter, "filter", "w", "TRUE", "Filter for results. SQL boolean expression.")
 }
