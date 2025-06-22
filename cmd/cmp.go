@@ -49,7 +49,7 @@ func cmdCmp(cmd *cobra.Command, args []string) error {
 		// boxes don't show up.
 		Options: table.OptionsDefault,
 		Format: table.FormatOptions{
-			Header: text.FormatUpper,
+			Header: text.FormatDefault,
 			Row:    text.FormatDefault,
 		},
 	})
