@@ -3,6 +3,7 @@ package anal
 
 import (
 	"bytes"
+	"cmp"
 	"database/sql"
 	"fmt"
 	"log"
@@ -210,6 +211,10 @@ func (h *Histogram) Scan(v any) error {
 	if bins == nil {
 		return fmt.Errorf("empty map, expectedp histogram bins")
 	}
+	binLess := func(x, y HistogramBin) int {
+		return cmp.Compare(x.boundary, y.boundary)
+	}
+	slices.SortFunc(bins, binLess)
 	*h = Histogram{
 		bins:        bins,
 		maxBoundary: maxBoundary,
