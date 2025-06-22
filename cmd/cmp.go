@@ -11,6 +11,8 @@ import (
 	"text/template"
 
 	"github.com/bjackman/falba/internal/db"
+	"github.com/bjackman/falba/internal/falba"
+	"github.com/marcboeker/go-duckdb"
 	"github.com/spf13/cobra"
 )
 
@@ -137,10 +139,23 @@ func checkFunctionalDependency(sqlDB *sql.DB, falbaDB *db.DB, experimentFact str
 }
 
 var groupByTemplate = template.Must(template.New("group-by").Parse(`
-	SELECT {{.Fact}}, AVG(CAST({{.MetricColumn}} AS FLOAT)) as mean
-	FROM filtered_results
-	INNER JOIN metrics USING (result_id)
-	WHERE metric = '{{.Metric}}' GROUP BY {{.Fact}}
+	WITH Results AS (
+		SELECT r.*, m.{{.MetricColumn}} as metric
+		FROM filtered_results r
+		INNER JOIN metrics m USING (result_id)
+		WHERE metric = '{{.Metric}}'
+	)
+	SELECT
+		{{.Fact}},
+		AVG(CAST(metric AS FLOAT)) AS mean,
+		histogram(
+			metric,
+			equi_width_bins(0, (SELECT MAX(metric) FROM Results),
+			65,
+			nice := true)
+		) AS hist
+	FROM Results
+	GROUP BY {{.Fact}}
 `))
 
 type groupByTemplateArgs struct {
@@ -163,6 +178,11 @@ type MetricGroup struct {
 	// Mean of the requested metric for results with the given fact value.
 	// Note we're assuming the value is numeric here.
 	Mean float64
+	Max  float64
+	Min  float64
+	// Histogram where the map keys are upper-boundaries of the bins.
+	// TODO: needs to be a proper type that we can print.
+	Histogram duckdb.Map
 }
 
 // Return a map of stringified fact values, to aggregates describing the value
@@ -170,13 +190,17 @@ type MetricGroup struct {
 // the map key should probably be a falba.Value but for now it seems like just
 // squashing it into a string is harmless enough.
 func groupByFact(sqlDB *sql.DB, falbaDB *db.DB, experimentFact string, metric string) (map[string]*MetricGroup, error) {
-	metricType, ok := falbaDB.MetricTypes[cmpFlagMetric]
+	metricType, ok := falbaDB.MetricTypes[metric]
 	if !ok {
-		return nil, fmt.Errorf("no metric %q (have: %v)", cmpFlagMetric, slices.Collect(maps.Keys(falbaDB.MetricTypes)))
+		return nil, fmt.Errorf("no metric %q (have: %v)", metric, slices.Collect(maps.Keys(falbaDB.MetricTypes)))
+	}
+	if metricType != falba.ValueInt && metricType != falba.ValueFloat {
+		return nil, fmt.Errorf("sorry, only implemented for float and int metrics (%v is %v)",
+			metric, metricType)
 	}
 	t := groupByTemplateArgs{
-		Fact:         cmpFlagFact,
-		Metric:       cmpFlagMetric,
+		Fact:         experimentFact,
+		Metric:       metric,
 		MetricColumn: metricType.MetricsColumn(),
 	}
 	query, err := t.Execute()
@@ -196,10 +220,18 @@ func groupByFact(sqlDB *sql.DB, falbaDB *db.DB, experimentFact string, metric st
 		// implement sql.Scanner for falba.Value.
 		var factStr string
 		var groupMean float64
-		if err := rows.Scan(&factStr, &groupMean); err != nil {
+		var groupMax float64
+		var groupMin float64
+		var histogram duckdb.Map
+		if err := rows.Scan(&factStr, &groupMean, &histogram); err != nil {
 			return nil, fmt.Errorf("scanning group-by rows: %v", err)
 		}
-		ret[factStr] = &MetricGroup{Mean: groupMean}
+		ret[factStr] = &MetricGroup{
+			Mean:      groupMean,
+			Max:       groupMax,
+			Min:       groupMin,
+			Histogram: histogram,
+		}
 	}
 	return ret, nil
 }
@@ -229,7 +261,7 @@ func cmdCmp(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("grouping by fact: %v", err)
 	}
 	for factVal, group := range groups {
-		log.Printf("%s = %s: μ = %f", cmpFlagFact, factVal, group.Mean)
+		log.Printf("%s = %s: μ = %f hist = %t", cmpFlagFact, factVal, group.Mean, group.Histogram)
 	}
 
 	return nil
