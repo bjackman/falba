@@ -31,8 +31,9 @@ var (
 // directory is of the format $test_name:$test_id. It contains a directory
 // called artifacts/ which contains the artifacts.
 type DB struct {
-	RootDir     string
-	Results     []*falba.Result
+	RootDir string
+	// Keys of this map are the result ID.
+	Results     map[string]*falba.Result
 	FactTypes   map[string]falba.ValueType
 	MetricTypes map[string]falba.ValueType
 }
@@ -243,7 +244,7 @@ func ReadDB(rootDir string) (*DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("opening DB root: %w", err)
 	}
-	results := []*falba.Result{}
+	results := make(map[string]*falba.Result)
 	for _, entry := range dir {
 		if entry.Name() == "parsers.json" {
 			continue
@@ -253,7 +254,10 @@ func ReadDB(rootDir string) (*DB, error) {
 		if err != nil {
 			return nil, fmt.Errorf("reading result from %v: %w", resultDir, err)
 		}
-		results = append(results, result)
+		if other, ok := results[result.ResultID]; ok {
+			return nil, fmt.Errorf("duplicate result ID %q (%v vs %v)", result.ResultID, resultDir, other.ResultDir(rootDir))
+		}
+		results[result.ResultID] = result
 	}
 	return &DB{
 		RootDir:     rootDir,

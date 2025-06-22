@@ -15,12 +15,23 @@ import (
 	_ "github.com/marcboeker/go-duckdb"
 )
 
+func resultsMap(t *testing.T, results []*falba.Result) map[string]*falba.Result {
+	ret := make(map[string]*falba.Result)
+	for _, r := range results {
+		if _, ok := ret[r.ResultID]; ok {
+			t.Fatalf("Duplicate ResultID %q", r.ResultID)
+		}
+		ret[r.ResultID] = r
+	}
+	return ret
+}
+
 func TestReadDB(t *testing.T) {
 	db, err := db.ReadDB("testdata/results")
 	if err != nil {
 		t.Fatalf("Failed to read DB: %v", err)
 	}
-	wantResults := []*falba.Result{
+	wantResults := resultsMap(t, []*falba.Result{
 		{
 			TestName: "my_test",
 			ResultID: "1514e610de1e",
@@ -61,7 +72,7 @@ func TestReadDB(t *testing.T) {
 				"my_raw_fact":  &falba.StringValue{Value: "GDAY MATE"},
 			},
 		},
-	}
+	})
 
 	// Sort stuff so we can compare slices of them without caring about order.
 	artifactLess := func(a, b *falba.Artifact) bool {
@@ -352,7 +363,7 @@ func TestInsertIntoDuckDB(t *testing.T) {
 
 	db := &db.DB{
 		RootDir: "testdata/results",
-		Results: []*falba.Result{
+		Results: resultsMap(t, []*falba.Result{
 			{
 				TestName: "test1",
 				ResultID: "result1",
@@ -375,7 +386,7 @@ func TestInsertIntoDuckDB(t *testing.T) {
 					{Name: "metric3", Value: &falba.IntValue{Value: 100}},
 				},
 			},
-		},
+		}),
 		FactTypes: map[string]falba.ValueType{
 			"fact1": falba.ValueString,
 			"fact2": falba.ValueInt,

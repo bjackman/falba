@@ -6,6 +6,7 @@ import (
 	"io"
 	"maps"
 	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -75,6 +76,10 @@ func (r *Result) ForMetricsTable() []map[string]any {
 		ret = append(ret, obj)
 	}
 	return ret
+}
+
+func (r *Result) ResultDir(dbRoot string) string {
+	return filepath.Join(dbRoot, fmt.Sprintf("%s:%s", r.TestName, r.ResultID))
 }
 
 // An Artifact is a file in the database, associated with a Result.
