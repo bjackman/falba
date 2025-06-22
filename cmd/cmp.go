@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"log"
 	"maps"
+	"os"
 	"slices"
 
 	"github.com/bjackman/falba/internal/anal"
+	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
 )
 
@@ -32,9 +34,15 @@ func cmdCmp(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("grouping by fact: %v", err)
 	}
+
+	t := table.NewWriter()
+	t.SetOutputMirror(os.Stdout)
+	t.AppendHeader(table.Row{cmpFlagFact, "mean", "histogram"})
 	for factVal, group := range groups {
-		log.Printf("%s = %s: μ = %f hist = %s", cmpFlagFact, factVal, group.Mean, group.Histogram.PlotUnicode())
+		t.AppendRow(table.Row{factVal, group.Mean, group.Histogram.PlotUnicode()})
 	}
+	t.SetStyle(table.StyleLight)
+	t.Render()
 
 	return nil
 }
