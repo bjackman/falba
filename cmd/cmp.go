@@ -172,6 +172,72 @@ func (g *groupByTemplateArgs) Execute() (string, error) {
 	return b.String(), nil
 }
 
+type histogramBin struct {
+	boundary float64 // left-open, right-closed.
+	size     uint64  // Number of samples in the bin.
+}
+
+type histogram struct {
+	bins        []histogramBin
+	maxBoundary float64
+	maxSize     uint64
+}
+
+// Annoying boilerplate to read the duckdb.Map that gets returned when we call
+// histogram() in SQL.
+func (h *histogram) Scan(v any) error {
+	dm, ok := v.(duckdb.Map)
+	if !ok {
+		return fmt.Errorf("invalid type %T for scanning Histogram, expected duckdb.Map", v)
+	}
+
+	var bins []histogramBin
+	var maxSize uint64
+	var maxBoundary float64
+	for k, v := range dm {
+		boundary, ok := k.(float64)
+		if !ok {
+			return fmt.Errorf("invalid type %T for histogram map key, expected float64", k)
+		}
+		size, ok := v.(uint64)
+		if !ok {
+			return fmt.Errorf("invalid type %T for histogram map value, expected uint64", v)
+		}
+		if bins == nil || boundary > maxBoundary {
+			maxBoundary = boundary
+		}
+		if bins == nil || size > maxSize {
+			maxSize = size
+		}
+		bins = append(bins, histogramBin{boundary: boundary, size: size})
+	}
+	if bins == nil {
+		return fmt.Errorf("empty map, expectedp histogram bins")
+	}
+	*h = histogram{
+		bins:        bins,
+		maxBoundary: maxBoundary,
+		maxSize:     maxSize,
+	}
+	return nil
+}
+
+// This is the ideal plotting library. You may not like it, but this is what
+// peak visualisation looks like.
+//
+// Return a single-line string of block element characters representing the
+// distribution. Doesn't include any axis or anything, just the block elems.
+// Width is equal to the number of histogram bins.
+func (h *histogram) PlotUnicode() string {
+	blockElems := []rune{' ', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
+	var b strings.Builder
+	for _, bin := range h.bins {
+		level := int(bin.size/h.maxSize) * (len(blockElems) - 1)
+		b.WriteRune(blockElems[level])
+	}
+	return b.String()
+}
+
 // Group represents aggregates about metric values for some collection of
 // results.
 type MetricGroup struct {
@@ -181,8 +247,7 @@ type MetricGroup struct {
 	Max  float64
 	Min  float64
 	// Histogram where the map keys are upper-boundaries of the bins.
-	// TODO: needs to be a proper type that we can print.
-	Histogram duckdb.Map
+	Histogram histogram
 }
 
 // Return a map of stringified fact values, to aggregates describing the value
@@ -222,7 +287,7 @@ func groupByFact(sqlDB *sql.DB, falbaDB *db.DB, experimentFact string, metric st
 		var groupMean float64
 		var groupMax float64
 		var groupMin float64
-		var histogram duckdb.Map
+		var histogram histogram
 		if err := rows.Scan(&factStr, &groupMean, &histogram); err != nil {
 			return nil, fmt.Errorf("scanning group-by rows: %v", err)
 		}
@@ -261,7 +326,7 @@ func cmdCmp(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("grouping by fact: %v", err)
 	}
 	for factVal, group := range groups {
-		log.Printf("%s = %s: μ = %f hist = %t", cmpFlagFact, factVal, group.Mean, group.Histogram)
+		log.Printf("%s = %s: μ = %f hist = %s", cmpFlagFact, factVal, group.Mean, group.Histogram.PlotUnicode())
 	}
 
 	return nil
