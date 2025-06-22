@@ -42,6 +42,7 @@ func cmdCmp(cmd *cobra.Command, args []string) error {
 		t.AppendRow(table.Row{factVal, group.Mean, group.Min, group.Histogram.PlotUnicode(), group.Max})
 	}
 	t.SetStyle(table.StyleLight)
+	t.SortBy([]table.SortBy{{Name: cmpFlagFact, Mode: table.Asc}})
 	t.Render()
 
 	return nil
