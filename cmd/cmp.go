@@ -11,6 +11,9 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/spf13/cobra"
+	"golang.org/x/text/language"
+	"golang.org/x/text/message"
+	"golang.org/x/text/number"
 )
 
 var (
@@ -18,6 +21,26 @@ var (
 	cmpFlagFact   string
 	cmpFlagFilter string
 )
+
+var printer *message.Printer = message.NewPrinter(language.English)
+
+// transformBigNumber is a text.Transformer for formatting larger numbers
+// readably. It rounds to the nearest int and adds commas.
+func transformBigNumber(v any) string {
+	switch v := v.(type) {
+	case float64:
+		var opts []number.Option
+		if v > 100 {
+			opts = append(opts, number.MaxFractionDigits(0))
+		}
+		return printer.Sprintf("%v", number.Decimal(v, opts...))
+	case int:
+		return printer.Sprintf("%v", number.Decimal(v))
+	default:
+		log.Printf("No transformer logic for value of type %T", v)
+		return printer.Sprintf("%v", v)
+	}
+}
 
 func cmdCmp(cmd *cobra.Command, args []string) error {
 	falbaDB, sqlDB, err := setupSQL()
@@ -52,6 +75,11 @@ func cmdCmp(cmd *cobra.Command, args []string) error {
 			Header: text.FormatDefault,
 			Row:    text.FormatDefault,
 		},
+	})
+	t.SetColumnConfigs([]table.ColumnConfig{
+		{Name: "mean", Transformer: transformBigNumber},
+		{Name: "min", Transformer: transformBigNumber},
+		{Name: "max", Transformer: transformBigNumber},
 	})
 	t.SortBy([]table.SortBy{{Name: cmpFlagFact, Mode: table.Asc}})
 	t.Render()
