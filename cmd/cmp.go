@@ -37,9 +37,9 @@ func cmdCmp(cmd *cobra.Command, args []string) error {
 
 	t := table.NewWriter()
 	t.SetOutputMirror(os.Stdout)
-	t.AppendHeader(table.Row{cmpFlagFact, "mean", "histogram"})
+	t.AppendHeader(table.Row{cmpFlagFact, "mean", "min", "histogram", "max"})
 	for factVal, group := range groups {
-		t.AppendRow(table.Row{factVal, group.Mean, group.Histogram.PlotUnicode()})
+		t.AppendRow(table.Row{factVal, group.Mean, group.Min, group.Histogram.PlotUnicode(), group.Max})
 	}
 	t.SetStyle(table.StyleLight)
 	t.Render()
