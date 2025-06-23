@@ -149,7 +149,7 @@ var groupByTemplate = template.Must(template.New("group-by").Parse(`
 		histogram(
 			metric,
 			equi_width_bins(0, (SELECT MAX(metric) FROM Results),
-			65,
+			50,
 			nice := true)
 		) AS hist,
 		MIN(metric) AS min_val,
