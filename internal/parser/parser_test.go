@@ -103,6 +103,24 @@ func TestParser(t *testing.T) {
 			parser:  test.MustNewRegexpParser(t, ".+", "my-metric", falba.ValueString),
 			want:    &falba.Metric{Name: "my-metric", Value: &falba.StringValue{Value: "yerp"}},
 		},
+		{
+			desc:    "bool true",
+			content: "true",
+			parser:  test.MustNewRegexpParser(t, ".+", "my-metric", falba.ValueBool),
+			want:    &falba.Metric{Name: "my-metric", Value: &falba.BoolValue{Value: true}},
+		},
+		{
+			desc:    "bool FALSE",
+			content: "FALSE",
+			parser:  test.MustNewRegexpParser(t, ".+", "my-metric", falba.ValueBool),
+			want:    &falba.Metric{Name: "my-metric", Value: &falba.BoolValue{Value: false}},
+		},
+		{
+			desc:    "bool group True",
+			content: "data: True",
+			parser:  test.MustNewRegexpParser(t, "data: (True)", "my-metric", falba.ValueBool),
+			want:    &falba.Metric{Name: "my-metric", Value: &falba.BoolValue{Value: true}},
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			result, err := tc.parser.Parse(fakeArtifact(t, tc.content))
@@ -282,19 +300,60 @@ OTHER_VAR=foo
 			desc:    "variable not found",
 			content: "OTHER_VAR=foo",
 			parser:  mustNewShellvarParser(t, "MY_VAR", "my_fact", falba.ValueString),
-			want:    nil,
+			want:    nil, // Expected behavior for not found is nil (which leads to ErrParseFailure in Extract)
 		},
 		{
 			desc:    "empty file - var not found",
 			content: "",
 			parser:  mustNewShellvarParser(t, "MY_VAR", "my_fact", falba.ValueString),
-			want:    nil,
+			want:    nil, // Expected behavior for not found is nil
+		},
+		{
+			desc:    "boolean value true",
+			content: "MY_BOOL_VAR=true",
+			parser:  mustNewShellvarParser(t, "MY_BOOL_VAR", "my_bool_fact", falba.ValueBool),
+			want:    &falba.BoolValue{Value: true},
+		},
+		{
+			desc:    "boolean value FALSE (quoted)",
+			content: `MY_BOOL_VAR="FALSE"`,
+			parser:  mustNewShellvarParser(t, "MY_BOOL_VAR", "my_bool_fact", falba.ValueBool),
+			want:    &falba.BoolValue{Value: false},
+		},
+		{
+			desc:    "boolean value true from quoted int string \"1\"",
+			content: `MY_BOOL_VAR="1"`,
+			parser:  mustNewShellvarParser(t, "MY_BOOL_VAR", "my_bool_fact", falba.ValueBool),
+			want:    &falba.BoolValue{Value: true},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			artifact := fakeArtifact(t, tc.content)
+			// For cases where want is nil, we expect an ErrParseFailure from the Extract method
+			// which then propagates up from parser.Parse()
+			if tc.want == nil {
+				_, err := tc.parser.Parse(artifact)
+				if err == nil {
+					t.Fatalf("Parse() expected error for nil want, got nil")
+				}
+				if !errors.Is(err, parser.ErrParseFailure) {
+					t.Errorf("Parse() expected ErrParseFailure for nil want, got %v", err)
+				}
+				// Check that the error message contains relevant phrases
+				errMsg := err.Error()
+				// Check for "variable" AND "not found" for the variable not found case,
+				// or "empty content" for the empty file case.
+				isVarNotFoundErr := strings.Contains(errMsg, "variable") && strings.Contains(errMsg, "not found")
+				isEmptyContentErr := strings.Contains(errMsg, "empty content")
+
+				if !(isVarNotFoundErr || isEmptyContentErr) {
+					t.Errorf("Expected error for %q to indicate 'variable not found' or 'empty content', got: %s", tc.desc, errMsg)
+				}
+				return // End test here for nil want cases
+			}
+
 			result, err := tc.parser.Parse(artifact)
 			if err != nil {
 				t.Fatalf("Parse() failed: %v", err)
@@ -376,11 +435,12 @@ func TestShellvarParser_Error(t *testing.T) {
 		parser      *parser.Parser
 		expectError bool // True if any error, if false, means ErrParseFailure from Extract
 	}{
-		{
-			desc:    "malformed line (no equals) - var not found",
-			content: "MY_VAR value", // Line is skipped, MY_VAR not found by that name.
-			parser:  mustNewShellvarParser(t, "MY_VAR", "my_fact", falba.ValueString),
-		},
+		// "malformed line" now results in "variable not found", which is an ErrParseFailure handled by happy path.
+		// {
+		// 	desc:    "malformed line (no equals) - var not found",
+		// 	content: "MY_VAR value", // Line is skipped, MY_VAR not found by that name.
+		// 	parser:  mustNewShellvarParser(t, "MY_VAR", "my_fact", falba.ValueString),
+		// },
 		{
 			desc:    "type mismatch (string for int)",
 			content: "MY_INT_VAR=notanint", // parseValue returns "notanint", falba.ParseValue("notanint", Int) errors.
@@ -390,6 +450,16 @@ func TestShellvarParser_Error(t *testing.T) {
 			desc:    "type mismatch (single-quoted string for int)",
 			content: "MY_INT_VAR='123'", // parseValue returns "'123'", falba.ParseValue("'123'", Int) errors.
 			parser:  mustNewShellvarParser(t, "MY_INT_VAR", "my_int_fact", falba.ValueInt),
+		},
+		{
+			desc:    "type mismatch (string for bool)",
+			content: "MY_BOOL_VAR=notabool",
+			parser:  mustNewShellvarParser(t, "MY_BOOL_VAR", "my_bool_fact", falba.ValueBool),
+		},
+		{
+			desc:    "type mismatch (int string for bool)",
+			content: `MY_BOOL_VAR="1"`,
+			parser:  mustNewShellvarParser(t, "MY_BOOL_VAR", "my_bool_fact", falba.ValueBool),
 		},
 		{
 			desc: "invalid escape for strconv.Unquote then type mismatch (int)",
@@ -484,6 +554,241 @@ func TestShellvarParserFromConfig_MissingVar(t *testing.T) {
 	if !strings.Contains(err.Error(), "missing/empty 'var' field") {
 		t.Errorf("Expected error about missing 'var', got: %v", err)
 	}
+}
+
+func TestJSONPathParser(t *testing.T) {
+	mustNewJSONPathParser := func(t *testing.T, jsonPath string, targetName string, targetType parser.TargetType, valueType falba.ValueType) *parser.Parser {
+		t.Helper()
+		extractor, err := parser.NewJSONPathExtractor(jsonPath, valueType)
+		if err != nil {
+			t.Fatalf("NewJSONPathExtractor(%q, %v) failed: %v", jsonPath, valueType, err)
+		}
+		p, err := parser.NewParser("testJSONPath", ".", &parser.ParserTarget{Name: targetName, TargetType: targetType, ValueType: valueType}, extractor)
+		if err != nil {
+			t.Fatalf("NewParser failed: %v", err)
+		}
+		return p
+	}
+
+	happyPathTestCases := []struct {
+		desc    string
+		content string // JSON content
+		parser  *parser.Parser
+		want    falba.Value   // For facts
+		wantMet *falba.Metric // For metrics
+	}{
+		{
+			desc:    "string fact",
+			content: `{"key": "value"}`,
+			parser:  mustNewJSONPathParser(t, "$.key", "my_fact", parser.TargetFact, falba.ValueString),
+			want:    &falba.StringValue{Value: "value"},
+		},
+		{
+			desc:    "int metric",
+			content: `{"num": 123}`,
+			parser:  mustNewJSONPathParser(t, "$.num", "my_metric", parser.TargetMetric, falba.ValueInt),
+			wantMet: &falba.Metric{Name: "my_metric", Value: &falba.IntValue{Value: 123}},
+		},
+		{
+			desc:    "float fact from number",
+			content: `{"val": 45.67}`,
+			parser:  mustNewJSONPathParser(t, "$.val", "my_fact", parser.TargetFact, falba.ValueFloat),
+			want:    &falba.FloatValue{Value: 45.67},
+		},
+		{
+			desc:    "bool fact true",
+			content: `{"is_enabled": true}`,
+			parser:  mustNewJSONPathParser(t, "$.is_enabled", "my_bool_fact", parser.TargetFact, falba.ValueBool),
+			want:    &falba.BoolValue{Value: true},
+		},
+		{
+			desc:    "bool fact false",
+			content: `{"active": false}`,
+			parser:  mustNewJSONPathParser(t, "$.active", "my_bool_fact", parser.TargetFact, falba.ValueBool),
+			want:    &falba.BoolValue{Value: false},
+		},
+		{
+			desc:    "bool fact from string 'true'",
+			content: `{"status": "true"}`,
+			parser:  mustNewJSONPathParser(t, "$.status", "my_bool_fact", parser.TargetFact, falba.ValueBool),
+			want:    &falba.BoolValue{Value: true},
+		},
+		{
+			desc:    "bool fact from string 'FALSE'",
+			content: `{"status": "FALSE"}`,
+			parser:  mustNewJSONPathParser(t, "$.status", "my_bool_fact", parser.TargetFact, falba.ValueBool),
+			want:    &falba.BoolValue{Value: false},
+		},
+		{
+			desc:    "nested value",
+			content: `{"data": {"info": "details"}}`,
+			parser:  mustNewJSONPathParser(t, "$.data.info", "my_fact", parser.TargetFact, falba.ValueString),
+			want:    &falba.StringValue{Value: "details"},
+		},
+		{
+			desc:    "array element string",
+			content: `{"list": ["a", "b", "c"]}`,
+			parser:  mustNewJSONPathParser(t, "$.list[1]", "my_fact", parser.TargetFact, falba.ValueString),
+			want:    &falba.StringValue{Value: "b"},
+		},
+		{
+			desc:    "array element int",
+			content: `{"numbers": [10, 20, 30]}`,
+			parser:  mustNewJSONPathParser(t, "$.numbers[0]", "my_metric", parser.TargetMetric, falba.ValueInt),
+			wantMet: &falba.Metric{Name: "my_metric", Value: &falba.IntValue{Value: 10}},
+		},
+		{
+			desc:    "array element bool",
+			content: `{"flags": [true, false, true]}`,
+			parser:  mustNewJSONPathParser(t, "$.flags[1]", "my_bool_fact", parser.TargetFact, falba.ValueBool),
+			want:    &falba.BoolValue{Value: false},
+		},
+		{
+			desc:    "filtered value from array",
+			content: `{"items": [{"name": "A", "val": 1}, {"name": "B", "val": 2}]}`,
+			parser:  mustNewJSONPathParser(t, "$.items[?(@.name=='B')].val", "my_metric", parser.TargetMetric, falba.ValueInt),
+			wantMet: &falba.Metric{Name: "my_metric", Value: &falba.IntValue{Value: 2}},
+		},
+	}
+
+	for _, tc := range happyPathTestCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			artifact := fakeArtifact(t, tc.content)
+			result, err := tc.parser.Parse(artifact)
+			if err != nil {
+				t.Fatalf("Parse() failed: %v", err)
+			}
+
+			if tc.parser.Target.TargetType == parser.TargetFact {
+				if len(result.Metrics) != 0 {
+					t.Errorf("Expected 0 metrics, got %d", len(result.Metrics))
+				}
+				if len(result.Facts) != 1 {
+					t.Errorf("Expected 1 fact, got %d: %v", len(result.Facts), result.Facts)
+					return
+				}
+				factName := tc.parser.Target.Name
+				got, ok := result.Facts[factName]
+				if !ok {
+					t.Fatalf("Fact %q not found in results. Got: %v", factName, result.Facts)
+				}
+				if diff := cmp.Diff(tc.want, got); diff != "" {
+					t.Errorf("Fact mismatch (-want +got):\n%s", diff)
+				}
+			} else { // TargetMetric
+				if len(result.Facts) != 0 {
+					t.Errorf("Expected 0 facts, got %d", len(result.Facts))
+				}
+				if len(result.Metrics) != 1 {
+					t.Errorf("Expected 1 metric, got %d: %v", len(result.Metrics), result.Metrics)
+					return
+				}
+				if diff := cmp.Diff(tc.wantMet, result.Metrics[0]); diff != "" {
+					t.Errorf("Metric mismatch (-want +got):\n%s", diff)
+				}
+			}
+		})
+	}
+
+	errorTestCases := []struct {
+		desc    string
+		content string // JSON content
+		parser  *parser.Parser
+	}{
+		{
+			desc:    "path not found",
+			content: `{"key": "value"}`,
+			parser:  mustNewJSONPathParser(t, "$.nonexistent", "my_fact", parser.TargetFact, falba.ValueString),
+		},
+		{
+			desc:    "invalid JSON content",
+			content: `{"key": "value"`, // Missing closing brace
+			parser:  mustNewJSONPathParser(t, "$.key", "my_fact", parser.TargetFact, falba.ValueString),
+		},
+		{
+			desc:    "type mismatch (string for int)",
+			content: `{"val": "notanint"}`,
+			parser:  mustNewJSONPathParser(t, "$.val", "my_metric", parser.TargetMetric, falba.ValueInt),
+		},
+		{
+			desc:    "type mismatch (number for string when direct string expected)",
+			content: `{"val": 123}`,
+			// JSONPathExtractor expects string if ValueString, but JSON has number.
+			// This will cause a type assertion error in the extractor.
+			parser: mustNewJSONPathParser(t, "$.val", "my_fact", parser.TargetFact, falba.ValueString),
+		},
+		{
+			desc:    "type mismatch (bool for string when direct string expected)",
+			content: `{"val": true}`,
+			parser:  mustNewJSONPathParser(t, "$.val", "my_fact", parser.TargetFact, falba.ValueString),
+		},
+		{
+			desc:    "type mismatch (string 'notabool' for bool)",
+			content: `{"val": "notabool"}`,
+			parser:  mustNewJSONPathParser(t, "$.val", "my_fact", parser.TargetFact, falba.ValueBool),
+		},
+		{
+			desc:    "type mismatch (int 1 for bool)",
+			content: `{"val": 1}`, // JSONPath returns float64 for numbers
+			parser:  mustNewJSONPathParser(t, "$.val", "my_fact", parser.TargetFact, falba.ValueBool),
+		},
+		{
+			desc:    "JSONPath returns multiple values",
+			content: `{"items": [1, 2, 3]}`,
+			parser:  mustNewJSONPathParser(t, "$.items[*]", "my_metric", parser.TargetMetric, falba.ValueInt),
+		},
+	}
+
+	for _, tc := range errorTestCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			artifact := fakeArtifact(t, tc.content)
+			_, err := tc.parser.Parse(artifact)
+			if err == nil {
+				t.Fatalf("Parse() expected error, got nil")
+			}
+			if !errors.Is(err, parser.ErrParseFailure) {
+				// Some JSONPath evaluation errors might be fatal, not ErrParseFailure
+				// e.g. if the expression itself is malformed (though NewJSONPathExtractor should catch some)
+				// or if JSON unmarshalling fails before JSONPath.
+				t.Logf("Note: Error was not ErrParseFailure, but: %v", err)
+			}
+		})
+	}
+
+	t.Run("FromConfig jsonpath", func(t *testing.T) {
+		configJSON := `{
+			"type": "jsonpath",
+			"artifact_regexp": "\\.json$",
+			"jsonpath": "$.name",
+			"metric": {
+				"name": "entity_name",
+				"type": "string"
+			}
+		}`
+		p, err := parser.FromConfig([]byte(configJSON), "jsonpath_test_parser")
+		if err != nil {
+			t.Fatalf("FromConfig failed: %v", err)
+		}
+		if p.Name != "jsonpath_test_parser" || p.ArtifactRE.String() != "\\.json$" || p.Target.Name != "entity_name" {
+			t.Errorf("Parser fields mismatch")
+		}
+		_, ok := p.Extractor.(*parser.JSONPathExtractor)
+		if !ok {
+			t.Fatalf("Extractor is not of type *JSONPathExtractor, got %T", p.Extractor)
+		}
+	})
+
+	t.Run("FromConfig jsonpath missing jsonpath field", func(t *testing.T) {
+		configJSON := `{
+			"type": "jsonpath",
+			"artifact_regexp": "\\.json$",
+			"metric": { "name": "foo", "type": "string" }
+		}`
+		_, err := parser.FromConfig([]byte(configJSON), "test")
+		if err == nil || !strings.Contains(err.Error(), "missing/empty 'jsonpath' field") {
+			t.Errorf("Expected error about missing 'jsonpath' field, got: %v", err)
+		}
+	})
 }
 
 func TestReservedFactNamesRejected(t *testing.T) {

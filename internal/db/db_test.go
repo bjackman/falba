@@ -370,27 +370,40 @@ func TestInsertIntoDuckDB(t *testing.T) {
 				Facts: map[string]falba.Value{
 					"fact1": &falba.StringValue{Value: "value1"},
 					"fact2": &falba.IntValue{Value: 42},
+					"fact_bool_true": &falba.BoolValue{Value: true},
 				},
 				Metrics: []*falba.Metric{
 					{Name: "metric1", Value: &falba.FloatValue{Value: 3.14}},
 					{Name: "metric2", Value: &falba.StringValue{Value: "test"}},
+					{Name: "metric_bool_false", Value: &falba.BoolValue{Value: false}},
 				},
 			},
 			{
 				TestName: "test2",
 				ResultID: "result2",
 				Facts: map[string]falba.Value{
-					"fact3": &falba.StringValue{Value: "true"},
+					"fact3": &falba.StringValue{Value: "a_string_that_is_true"}, // Keep as string to test string "true"
+					"fact_bool_false": &falba.BoolValue{Value: false},
 				},
 				Metrics: []*falba.Metric{
 					{Name: "metric3", Value: &falba.IntValue{Value: 100}},
+					{Name: "metric_bool_true", Value: &falba.BoolValue{Value: true}},
 				},
 			},
 		}),
 		FactTypes: map[string]falba.ValueType{
-			"fact1": falba.ValueString,
-			"fact2": falba.ValueInt,
-			"fact3": falba.ValueString,
+			"fact1":           falba.ValueString,
+			"fact2":           falba.ValueInt,
+			"fact3":           falba.ValueString, // This is a string fact that happens to be "true"
+			"fact_bool_true":  falba.ValueBool,
+			"fact_bool_false": falba.ValueBool,
+		},
+		MetricTypes: map[string]falba.ValueType{
+			"metric1":           falba.ValueFloat,
+			"metric2":           falba.ValueString,
+			"metric3":           falba.ValueInt,
+			"metric_bool_false": falba.ValueBool,
+			"metric_bool_true":  falba.ValueBool,
 		},
 	}
 
@@ -434,48 +447,64 @@ func TestInsertIntoDuckDB(t *testing.T) {
 	}
 
 	// Test fact columns
-	factRows, err := sqlDB.Query("SELECT test_name, fact1, fact2, fact3 FROM results ORDER BY test_name")
+	factRows, err := sqlDB.Query("SELECT test_name, fact1, fact2, fact3, fact_bool_true, fact_bool_false FROM results ORDER BY test_name")
 	if err != nil {
 		t.Fatalf("Failed to query fact results: %v", err)
 	}
 	defer factRows.Close()
 
 	var gotFactResults []struct {
-		TestName string
-		Fact1    sql.NullString
-		Fact2    sql.NullInt64
-		Fact3    sql.NullString
+		TestName      string
+		Fact1         sql.NullString
+		Fact2         sql.NullInt64
+		Fact3         sql.NullString
+		FactBoolTrue  sql.NullBool
+		FactBoolFalse sql.NullBool
 	}
 	for factRows.Next() {
-		var testName string
-		var fact1, fact3 sql.NullString
-		var fact2 sql.NullInt64
-		if err := factRows.Scan(&testName, &fact1, &fact2, &fact3); err != nil {
+		var r struct {
+			TestName      string
+			Fact1         sql.NullString
+			Fact2         sql.NullInt64
+			Fact3         sql.NullString
+			FactBoolTrue  sql.NullBool
+			FactBoolFalse sql.NullBool
+		}
+		if err := factRows.Scan(&r.TestName, &r.Fact1, &r.Fact2, &r.Fact3, &r.FactBoolTrue, &r.FactBoolFalse); err != nil {
 			t.Fatalf("Failed to scan fact row: %v", err)
 		}
-		gotFactResults = append(gotFactResults, struct {
-			TestName string
-			Fact1    sql.NullString
-			Fact2    sql.NullInt64
-			Fact3    sql.NullString
-		}{testName, fact1, fact2, fact3})
+		gotFactResults = append(gotFactResults, r)
 	}
 
 	expectedFactResults := []struct {
-		TestName string
-		Fact1    sql.NullString
-		Fact2    sql.NullInt64
-		Fact3    sql.NullString
+		TestName      string
+		Fact1         sql.NullString
+		Fact2         sql.NullInt64
+		Fact3         sql.NullString
+		FactBoolTrue  sql.NullBool
+		FactBoolFalse sql.NullBool
 	}{
-		{"test1", sql.NullString{Valid: true, String: "value1"}, sql.NullInt64{Valid: true, Int64: 42}, sql.NullString{}},
-		{"test2", sql.NullString{}, sql.NullInt64{}, sql.NullString{Valid: true, String: "true"}},
+		{"test1",
+			sql.NullString{Valid: true, String: "value1"},
+			sql.NullInt64{Valid: true, Int64: 42},
+			sql.NullString{},
+			sql.NullBool{Valid: true, Bool: true},
+			sql.NullBool{},
+		},
+		{"test2",
+			sql.NullString{},
+			sql.NullInt64{},
+			sql.NullString{Valid: true, String: "a_string_that_is_true"},
+			sql.NullBool{},
+			sql.NullBool{Valid: true, Bool: false},
+		},
 	}
 
-	if diff := cmp.Diff(gotFactResults, expectedFactResults); diff != "" {
-		t.Errorf("Unexpected fact results (-got +want): %v", diff)
+	if diff := cmp.Diff(expectedFactResults, gotFactResults); diff != "" {
+		t.Errorf("Unexpected fact results (-want +got): %v", diff)
 	}
 
-	metricsRows, err := sqlDB.Query("SELECT result_id, metric, int_value, float_value, string_value FROM metrics ORDER BY metric")
+	metricsRows, err := sqlDB.Query("SELECT result_id, metric, int_value, float_value, string_value, bool_value FROM metrics ORDER BY result_id, metric")
 	if err != nil {
 		t.Fatalf("Failed to query metrics: %v", err)
 	}
@@ -491,7 +520,8 @@ func TestInsertIntoDuckDB(t *testing.T) {
 		var intValue sql.NullInt64
 		var floatValue sql.NullFloat64
 		var stringValue sql.NullString
-		if err := metricsRows.Scan(&resultID, &metric, &intValue, &floatValue, &stringValue); err != nil {
+		var boolValue sql.NullBool
+		if err := metricsRows.Scan(&resultID, &metric, &intValue, &floatValue, &stringValue, &boolValue); err != nil {
 			t.Fatalf("Failed to scan metrics row: %v", err)
 		}
 
@@ -502,6 +532,8 @@ func TestInsertIntoDuckDB(t *testing.T) {
 			value = floatValue.Float64
 		} else if stringValue.Valid {
 			value = stringValue.String
+		} else if boolValue.Valid {
+			value = boolValue.Bool
 		}
 
 		gotMetrics = append(gotMetrics, struct {
@@ -518,10 +550,12 @@ func TestInsertIntoDuckDB(t *testing.T) {
 	}{
 		{"result1", "metric1", 3.14},
 		{"result1", "metric2", "test"},
+		{"result1", "metric_bool_false", false},
 		{"result2", "metric3", int64(100)},
+		{"result2", "metric_bool_true", true},
 	}
 
-	if diff := cmp.Diff(gotMetrics, expectedMetrics); diff != "" {
-		t.Errorf("Unexpected metrics (-got +want): %v", diff)
+	if diff := cmp.Diff(expectedMetrics, gotMetrics); diff != "" {
+		t.Errorf("Unexpected metrics (-want +got): %v", diff)
 	}
 }
