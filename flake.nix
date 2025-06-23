@@ -11,16 +11,27 @@
       let pkgs = import nixpkgs { inherit system; }; in
       {
         packages = rec {
+          # Just falba itself.
           falba = pkgs.buildGoModule {
             name = "falba";
             vendorHash = "sha256-Qdd5dImFn2LI2q1BAEdu3MLkakpHiqd2LHAUCzvyjDI=";
             src = ./.;
             buildInputs = with pkgs; [ arrow-cpp duckdb ];
           };
-          default = falba;
+          # Wrapped falba that includes the duckdb binary so that you don't need
+          # to set --duckdb-cli when using the `falba sql` command.
+          falba-with-duckdb = pkgs.runCommand "falba" {
+            nativeBuildInputs = [ pkgs.makeWrapper ];
+          } ''
+            mkdir -p $out/bin
+
+            makeWrapper ${falba}/bin/falba $out/bin/falba \
+              --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.duckdb ]}
+          '';
+          default = falba-with-duckdb;
         };
         apps = rec {
-          falba = flake-utils.lib.mkApp { drv = self.packages.${system}.falba; };
+          falba = flake-utils.lib.mkApp { drv = self.packages.${system}.falba-with-duckdb; };
           default = falba;
         };
       }
