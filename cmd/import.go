@@ -18,18 +18,15 @@ var (
 
 func importCmdRunE(cmd *cobra.Command, args []string) error {
 	artifactPaths := args
-	if len(artifactPaths) == 0 {
-		return fmt.Errorf("at least one artifact path must be provided")
-	}
 
-	if importFlagTestName == "" {
-		return fmt.Errorf("--test-name is required")
-	}
-
-	// Helper to walk through the files
-	// Yields tuples of (current path of file, eventual path of file relative to artifacts/)
+	// Helper to walk through the files. This implements the logic where we
+	// treat individial files individually (copying them straight to the root of
+	// the artifacts dir), and directories as a special group (maintaining their
+	// structure inside the artifacts tree).
 	type artifactEntry struct {
+		// Where the file currently is.
 		currentPath string
+		// Where it needs to go, relative to artifacts/
 		relativePath string
 	}
 	var artifactsToProcess []artifactEntry
@@ -62,7 +59,7 @@ func importCmdRunE(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Figure out the result ID by hashing the artifacts.
+	// Calculate result ID.
 	hash := sha256.New()
 	for _, entry := range artifactsToProcess {
 		f, err := os.Open(entry.currentPath)
@@ -71,7 +68,6 @@ func importCmdRunE(cmd *cobra.Command, args []string) error {
 		}
 		defer f.Close()
 
-		// Hash the file content
 		fileHash := sha256.New()
 		if _, err := io.Copy(fileHash, f); err != nil {
 			return fmt.Errorf("failed to hash content of %s: %w", entry.currentPath, err)
@@ -80,14 +76,8 @@ func importCmdRunE(cmd *cobra.Command, args []string) error {
 	}
 	hashStr := hex.EncodeToString(hash.Sum(nil))[:12]
 
-	// Copy the artifacts into the database.
-	// Ensure flagResultDB is available (from rootCmd)
-	if flagResultDB == "" {
-		return fmt.Errorf("path to Falba DB root (--result-db) not set")
-	}
 	resultDir := filepath.Join(flagResultDB, fmt.Sprintf("%s:%s", importFlagTestName, hashStr))
-	
-	// This must fail if the directory already exists.
+
 	err := os.Mkdir(resultDir, 0755)
 	if err != nil {
 		if os.IsExist(err) {
@@ -100,7 +90,7 @@ func importCmdRunE(cmd *cobra.Command, args []string) error {
 	numCopied := 0
 	for _, entry := range artifactsToProcess {
 		destPath := filepath.Join(artifactsDir, entry.relativePath)
-		
+
 		err := os.MkdirAll(filepath.Dir(destPath), 0755)
 		if err != nil {
 			return fmt.Errorf("failed to create parent directory for %s: %w", destPath, err)
@@ -137,11 +127,11 @@ var importCmd = &cobra.Command{
 Files specified directly are added by name to the root of the artifacts
 tree. Directories are copied recursively, preserving their structure.`,
 	RunE: importCmdRunE,
-	Args: cobra.MinimumNArgs(1), // Ensure at least one artifact path is provided
+	Args: cobra.MinimumNArgs(1),
 }
 
 func init() {
 	rootCmd.AddCommand(importCmd)
 	importCmd.Flags().StringVarP(&importFlagTestName, "test-name", "t", "", "Name of the test")
-	// No need to mark as required here, RunE checks for it. Or use MarkFlagRequired.
+	importCmd.MarkFlagRequired("test-name")
 }
