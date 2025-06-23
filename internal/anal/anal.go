@@ -181,6 +181,7 @@ type Histogram struct {
 	bins        []HistogramBin
 	maxBoundary float64
 	maxSize     uint64
+	TotalSize   uint64
 }
 
 // Annoying boilerplate to read the duckdb.Map that gets returned when we call
@@ -193,6 +194,7 @@ func (h *Histogram) Scan(v any) error {
 
 	var bins []HistogramBin
 	var maxSize uint64
+	var totalSize uint64
 	var maxBoundary float64
 	for k, v := range dm {
 		boundary, ok := k.(float64)
@@ -209,6 +211,7 @@ func (h *Histogram) Scan(v any) error {
 		if bins == nil || size > maxSize {
 			maxSize = size
 		}
+		totalSize += size
 		bins = append(bins, HistogramBin{boundary: boundary, size: size})
 	}
 	if bins == nil {
@@ -222,6 +225,7 @@ func (h *Histogram) Scan(v any) error {
 		bins:        bins,
 		maxBoundary: maxBoundary,
 		maxSize:     maxSize,
+		TotalSize: totalSize,
 	}
 	return nil
 }
