@@ -61,9 +61,10 @@ func cmdCmp(cmd *cobra.Command, args []string) error {
 
 	t := table.NewWriter()
 	t.SetOutputMirror(os.Stdout)
-	t.AppendHeader(table.Row{cmpFlagFact, "mean", "min", "histogram", "max"})
+	// TODO: It's kinda wrong that we support each group being for a different test...
+	t.AppendHeader(table.Row{"test", cmpFlagFact, "mean", "min", "histogram", "max"})
 	for factVal, group := range groups {
-		t.AppendRow(table.Row{factVal, group.Mean, group.Min, group.Histogram.PlotUnicode(), group.Max})
+		t.AppendRow(table.Row{group.TestName, factVal, group.Mean, group.Min, group.Histogram.PlotUnicode(), group.Max})
 	}
 	t.SetStyle(table.Style{
 		Name: "mystyle",

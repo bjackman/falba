@@ -141,6 +141,9 @@ var groupByTemplate = template.Must(template.New("group-by").Parse(`
 		WHERE metric = '{{.Metric}}'
 	)
 	SELECT
+		-- All rows should have the same test name, as enforced by
+		-- checkFunctionalDependency.
+		ANY_VALUE(test_name),
 		{{.Fact}},
 		AVG(CAST(metric AS FLOAT)) AS mean,
 		histogram(
@@ -242,6 +245,7 @@ func (h *Histogram) PlotUnicode() string {
 // Group represents aggregates about metric values for some collection of
 // results.
 type MetricGroup struct {
+	TestName string
 	// Mean of the requested metric for results with the given fact value.
 	// Note we're assuming the value is numeric here.
 	Mean float64
@@ -290,6 +294,7 @@ func GroupByFact(sqlDB *sql.DB, falbaDB *db.DB, experimentFact string, metric st
 	defer rows.Close()
 	ret := make(map[string]*MetricGroup)
 	for rows.Next() {
+		var testName string
 		// Rows.Scan stringifies stuff so for now it seems  we can get away with
 		// just using string vars here. I think the next step up would be to
 		// implement sql.Scanner for falba.Value.
@@ -298,10 +303,11 @@ func GroupByFact(sqlDB *sql.DB, falbaDB *db.DB, experimentFact string, metric st
 		var groupMax float64
 		var groupMin float64
 		var histogram Histogram
-		if err := rows.Scan(&factStr, &groupMean, &histogram, &groupMin, &groupMax); err != nil {
+		if err := rows.Scan(&testName, &factStr, &groupMean, &histogram, &groupMin, &groupMax); err != nil {
 			return nil, fmt.Errorf("scanning group-by rows: %v", err)
 		}
 		ret[factStr] = &MetricGroup{
+			TestName:  testName,
 			Mean:      groupMean,
 			Max:       groupMax,
 			Min:       groupMin,
