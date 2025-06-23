@@ -104,6 +104,7 @@ const (
 	ValueInt ValueType = iota
 	ValueFloat
 	ValueString
+	ValueBool
 )
 
 func (t ValueType) String() string {
@@ -114,6 +115,8 @@ func (t ValueType) String() string {
 		return "float"
 	case ValueString:
 		return "string"
+	case ValueBool:
+		return "bool"
 	default:
 		panic(fmt.Sprintf("Invalid ValueType %d", t))
 	}
@@ -122,7 +125,26 @@ func (t ValueType) String() string {
 // MetricsColumn returns the name of the column that's used to store metrics of
 // this type in the metric table.
 func (t ValueType) MetricsColumn() string {
-	return fmt.Sprintf("%s_value", t)
+	// For bool_value, it implies booleans can be metrics.
+	// If they are only facts, this might not be strictly needed for ValueBool.
+	return fmt.Sprintf("%s_value", t.String())
+}
+
+// SQLType returns the DuckDB SQL type string for this ValueType.
+// Added for completeness and potential use in schema generation or validation.
+func (t ValueType) SQLType() string {
+	switch t {
+	case ValueInt:
+		return "BIGINT"
+	case ValueFloat:
+		return "DOUBLE"
+	case ValueString:
+		return "VARCHAR"
+	case ValueBool:
+		return "BOOLEAN"
+	default:
+		panic(fmt.Sprintf("Invalid ValueType %d for SQLType", t))
+	}
 }
 
 func ParseValueType(s string) (ValueType, error) {
@@ -133,8 +155,10 @@ func ParseValueType(s string) (ValueType, error) {
 		return ValueFloat, nil
 	case "string":
 		return ValueString, nil
+	case "bool":
+		return ValueBool, nil
 	default:
-		return 0, fmt.Errorf("unknown value type %q, expect 'int', 'float' or 'string'", s)
+		return 0, fmt.Errorf("unknown value type %q, expect 'int', 'float', 'string', or 'bool'", s)
 	}
 }
 
@@ -146,6 +170,7 @@ type Value interface {
 	IntValue() int64
 	FloatValue() float64
 	StringValue() string
+	BoolValue() bool // Added for boolean type
 }
 
 type IntValue struct {
@@ -168,6 +193,10 @@ func (v *IntValue) StringValue() string {
 	return ""
 }
 
+func (v *IntValue) BoolValue() bool { // Added for interface satisfaction
+	return false
+}
+
 type FloatValue struct {
 	Value float64
 }
@@ -186,6 +215,10 @@ func (v *FloatValue) FloatValue() float64 {
 
 func (v *FloatValue) StringValue() string {
 	return ""
+}
+
+func (v *FloatValue) BoolValue() bool { // Added for interface satisfaction
+	return false
 }
 
 type StringValue struct {
@@ -208,6 +241,35 @@ func (v *StringValue) StringValue() string {
 	return v.Value
 }
 
+func (v *StringValue) BoolValue() bool { // Added for interface satisfaction
+	return false
+}
+
+// BoolValue holds a boolean value.
+type BoolValue struct {
+	Value bool
+}
+
+func (v *BoolValue) Type() ValueType {
+	return ValueBool
+}
+
+func (v *BoolValue) IntValue() int64 {
+	return 0 // Or handle conversion if needed, e.g., 1 for true, 0 for false
+}
+
+func (v *BoolValue) FloatValue() float64 {
+	return 0.0 // Or handle conversion
+}
+
+func (v *BoolValue) StringValue() string {
+	return "" // Or handle conversion, e.g., "true" / "false"
+}
+
+func (v *BoolValue) BoolValue() bool {
+	return v.Value
+}
+
 func ValueValue(v Value) any {
 	switch v.Type() {
 	case ValueInt:
@@ -216,6 +278,8 @@ func ValueValue(v Value) any {
 		return v.FloatValue()
 	case ValueString:
 		return v.StringValue()
+	case ValueBool: // Added case for boolean
+		return v.BoolValue()
 	default:
 		panic(fmt.Sprintf("Unknown value type %v", v.Type()))
 	}
@@ -226,19 +290,26 @@ func ParseValue(s string, t ValueType) (Value, error) {
 	case ValueInt:
 		i, err := strconv.ParseInt(s, 0, 64)
 		if err != nil {
-			return nil, fmt.Errorf("couldn't parse %s as int: %v", s, err)
+			return nil, fmt.Errorf("couldn't parse %q as int: %v", s, err)
 		}
 		return &IntValue{Value: int64(i)}, nil
 	case ValueFloat:
 		f, err := strconv.ParseFloat(s, 64)
 		if err != nil {
-			return nil, fmt.Errorf("couldn't parse %s as float: %v", s, err)
+			return nil, fmt.Errorf("couldn't parse %q as float: %v", s, err)
 		}
 		return &FloatValue{Value: f}, nil
 	case ValueString:
 		return &StringValue{Value: s}, nil
+	case ValueBool: // Added case for boolean
+		b, err := strconv.ParseBool(strings.ToLower(s)) // ParseBool is case-insensitive
+		if err != nil {
+			return nil, fmt.Errorf("couldn't parse %q as bool: %v", s, err)
+		}
+		return &BoolValue{Value: b}, nil
 	default:
-		return nil, fmt.Errorf("invalid value type %v", t)
+		// Error message updated to include the specific string that failed parsing for better context.
+		return nil, fmt.Errorf("invalid value type %v for parsing string %q", t, s)
 	}
 }
 
