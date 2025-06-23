@@ -59,14 +59,27 @@ func cmdCmp(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("grouping by fact: %v", err)
 	}
 
-	fmt.Printf("metric: %v\n", cmpFlagMetric)
+	if len(groups) == 0 {
+		return fmt.Errorf("found no data\n")
+	}
+
+	// TODO: It's kinda wrong that we support each group being for a different test...
+	// For now, we'll only print one, plus a warning if there are multiple.
+	tests := make(map[string]bool)
+	for _, g := range groups {
+		tests[g.TestName] = true
+	}
+	allTests := slices.Collect(maps.Keys(tests))
+	if len(allTests) != 1 {
+		log.Printf("WARNING: Enountered %d tests (%v), this is probably wrong.", len(allTests), allTests)
+	}
+
+	fmt.Printf("metric: %v   |  test: %v\n", cmpFlagMetric, allTests[0])
 	t := table.NewWriter()
 	t.SetOutputMirror(os.Stdout)
-	// TODO: It's kinda wrong that we support each group being for a different test...
-	t.AppendHeader(table.Row{"test", cmpFlagFact, "samples", "mean", "min", "histogram", "max"})
+	t.AppendHeader(table.Row{cmpFlagFact, "samples", "mean", "min", "histogram", "max"})
 	for factVal, group := range groups {
 		t.AppendRow(table.Row{
-			group.TestName,
 			factVal,
 			group.Histogram.TotalSize,
 			group.Mean,
