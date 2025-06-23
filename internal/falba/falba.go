@@ -122,29 +122,10 @@ func (t ValueType) String() string {
 	}
 }
 
-// MetricsColumn returns the name of the column that's used to store metrics of
+// Metrics column returns the name of the column that's used to store metrics of
 // this type in the metric table.
 func (t ValueType) MetricsColumn() string {
-	// For bool_value, it implies booleans can be metrics.
-	// If they are only facts, this might not be strictly needed for ValueBool.
-	return fmt.Sprintf("%s_value", t.String())
-}
-
-// SQLType returns the DuckDB SQL type string for this ValueType.
-// Added for completeness and potential use in schema generation or validation.
-func (t ValueType) SQLType() string {
-	switch t {
-	case ValueInt:
-		return "BIGINT"
-	case ValueFloat:
-		return "DOUBLE"
-	case ValueString:
-		return "VARCHAR"
-	case ValueBool:
-		return "BOOLEAN"
-	default:
-		panic(fmt.Sprintf("Invalid ValueType %d for SQLType", t))
-	}
+	return fmt.Sprintf("%s_value", t)
 }
 
 func ParseValueType(s string) (ValueType, error) {
@@ -290,13 +271,13 @@ func ParseValue(s string, t ValueType) (Value, error) {
 	case ValueInt:
 		i, err := strconv.ParseInt(s, 0, 64)
 		if err != nil {
-			return nil, fmt.Errorf("couldn't parse %q as int: %v", s, err)
+			return nil, fmt.Errorf("couldn't parse %s as int: %v", s, err)
 		}
 		return &IntValue{Value: int64(i)}, nil
 	case ValueFloat:
 		f, err := strconv.ParseFloat(s, 64)
 		if err != nil {
-			return nil, fmt.Errorf("couldn't parse %q as float: %v", s, err)
+			return nil, fmt.Errorf("couldn't parse %s as float: %v", s, err)
 		}
 		return &FloatValue{Value: f}, nil
 	case ValueString:
@@ -308,8 +289,7 @@ func ParseValue(s string, t ValueType) (Value, error) {
 		}
 		return &BoolValue{Value: b}, nil
 	default:
-		// Error message updated to include the specific string that failed parsing for better context.
-		return nil, fmt.Errorf("invalid value type %v for parsing string %q", t, s)
+		return nil, fmt.Errorf("invalid value type %v", t)
 	}
 }
 
