@@ -59,6 +59,7 @@ func cmdCmp(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("grouping by fact: %v", err)
 	}
 
+	fmt.Printf("metric: %v\n", cmpFlagMetric)
 	t := table.NewWriter()
 	t.SetOutputMirror(os.Stdout)
 	// TODO: It's kinda wrong that we support each group being for a different test...
