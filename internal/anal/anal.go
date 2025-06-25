@@ -196,9 +196,20 @@ func (h *Histogram) Scan(v any) error {
 	var maxSize uint64
 	var totalSize uint64
 	var maxBoundary float64
+	var boundary float64
 	for k, v := range dm {
-		boundary, ok := k.(float64)
-		if !ok {
+		switch k := k.(type) {
+		case float64:
+			boundary = k
+		case int64:
+			// If the metric is an int the histogram boundaries will be ints.
+			//
+			// TODO: This is not necessarily accurate so we should ideally
+			// either support both types for bucket boundaries, or we should do
+			// something in the SQL to make this more accurate, I dunno floats
+			// are tricky.
+			boundary = float64(k)
+		default:
 			return fmt.Errorf("invalid type %T for histogram map key, expected float64", k)
 		}
 		size, ok := v.(uint64)
