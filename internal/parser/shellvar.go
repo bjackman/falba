@@ -79,6 +79,8 @@ func (e *ShellvarExtractor) parseValue(rawValue string) (string, error) {
 		return "", nil
 	}
 
+	// TODO: this is not properly parsing the format, it parses a Go string
+	// literal which is not actually compatible with the inteded format here.
 	unquoted, err := strconv.Unquote(rawValue)
 	if err == nil {
 		return unquoted, nil

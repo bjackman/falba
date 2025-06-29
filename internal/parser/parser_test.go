@@ -170,17 +170,6 @@ func TestShellvarParser_Happy(t *testing.T) {
 			parser:  mustNewShellvarParser(t, "MY_VAR", "my_fact", falba.ValueString),
 			want:    &falba.StringValue{Value: "value with \\ backslash"}, // strconv.Unquote handles this
 		},
-		// bjackman: I have commented out Jules' broken test.
-		// {
-		// 	desc:    "escaped dollar and backtick inside double quotes (Go specific)",
-		// 	// strconv.Unquote handles Go escapes like \$, but os-release might not intend $ to be special unless for expansion (which is not supported)
-		// 	// For `\$` and `\``, strconv.Unquote will produce `$` and ```.
-		// 	// The os-release spec says "$", quotes, backslash, backtick must be escaped.
-		// 	// So `\$` should become `$`. `\`` should become ```. This aligns.
-		// 	content: `MY_VAR="value with \$dollar and \`+"`backtick`"+`"`,
-		// 	parser:  mustNewShellvarParser(t, "MY_VAR", "my_fact", falba.ValueString),
-		// 	want:    &falba.StringValue{Value: "value with $dollar and `backtick`"},
-		// },
 		{
 			desc:    "single quotes inside double quotes",
 			content: `MY_VAR="value with 'single' quotes"`,
@@ -277,16 +266,6 @@ OTHER_VAR=foo
 			parser:  mustNewShellvarParser(t, "MY_VAR", "my_fact", falba.ValueString),
 			want:    &falba.StringValue{Value: "\""},
 		},
-		// backman: I have commented out Jules' broken test.
-		// {
-		// 	desc: "value is just escaped backslash",
-		// 	// File content: MY_VAR="\\" (variable set to a single backslash)
-		// 	// File content: MY_VAR="\\" (variable set to a single backslash)
-		// 	// strconv.Unquote will handle this correctly.
-		// 	content: "MY_VAR=\\\"\\\\\\\"",
-		// 	parser:  mustNewShellvarParser(t, "MY_VAR", "my_fact", falba.ValueString),
-		// 	want:    &falba.StringValue{Value: "\\"},
-		// },
 		{
 			desc:    "valid trailing backslash in double quotes (value ends with literal backslash)",
 			content: `MY_VAR="value\\"`, // Represents "value\"
@@ -310,6 +289,57 @@ OTHER_VAR=foo
 			content: "",
 			parser:  mustNewShellvarParser(t, "MY_VAR", "my_fact", falba.ValueString),
 			want:    nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			artifact := fakeArtifact(t, tc.content)
+			result, err := tc.parser.Parse(artifact)
+			if err != nil {
+				t.Fatalf("Parse() failed: %v", err)
+			}
+			if len(result.Metrics) != 0 {
+				t.Errorf("Expected 0 metrics, got %d", len(result.Metrics))
+			}
+			if len(result.Facts) != 1 {
+				t.Errorf("Expected 1 fact, got %d: %v", len(result.Facts), result.Facts)
+				return
+			}
+			factName := tc.parser.Target.Name
+			got, ok := result.Facts[factName]
+			if !ok {
+				t.Fatalf("Fact %q not found in results. Got: %v", factName, result.Facts)
+			}
+			if diff := cmp.Diff(tc.want, got); diff != "" {
+				t.Errorf("Parse() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+// These are tests for behaviour that is wrong, we just keep them as
+// change-detectors. The wrongness arises from the fact that we use
+// strconv.Unquote which parses Go syntax, which is not actually the syntax we
+// are supposed to be parsing here.
+func TestShellvarParser_QuotingBugs(t *testing.T) {
+	testCases := []struct {
+		desc    string
+		content string
+		parser  *parser.Parser
+		want    falba.Value
+	}{
+		{
+			desc:    "escaped dollar bug",
+			content: `MY_VAR="value with escaped \$dollar"`,
+			parser:  mustNewShellvarParser(t, "MY_VAR", "my_fact", falba.ValueString),
+			want:    &falba.StringValue{Value: `"value with escaped \$dollar"`},
+		},
+		{
+			desc:    "escaped backticks bug",
+			content: "MY_VAR=\"value with escaped \\`backticks\\`\"",
+			parser:  mustNewShellvarParser(t, "MY_VAR", "my_fact", falba.ValueString),
+			want:    &falba.StringValue{Value: "\"value with escaped \\`backticks\\`\""},
 		},
 	}
 
