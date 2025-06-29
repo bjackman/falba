@@ -119,7 +119,7 @@ func (t ValueType) String() string {
 	}
 }
 
-// Metrics column returns the name of the column that's used to store metrics of
+// MetricsColumn returns the name of the column that's used to store metrics of
 // this type in the metric table.
 func (t ValueType) MetricsColumn() string {
 	return fmt.Sprintf("%s_value", t)
