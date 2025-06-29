@@ -397,12 +397,6 @@ func TestShellvarParser_Error(t *testing.T) {
 			parser:      nil,       // Indicates test is about parser (extractor) creation
 			expectError: true,      // Expect a non-ErrParseFailure, a setup error
 		},
-		// Tests for malformed quoting resulting in ErrParseFailure directly from parseValue
-		// are mostly removed because strconv.Unquote failing leads to raw value return.
-		// An error would now typically come from falba.ParseValue if the raw (potentially bad) string
-		// cannot be converted to the target type.
-		// Example: MY_VAR="abc (target int) -> parseValue returns "abc", falba.ParseValue errors.
-		// Example: MY_VAR="abc (target string) -> parseValue returns "abc", falba.ParseValue succeeds.
 		{
 			desc: "invalid escape for strconv.Unquote then type mismatch (int)",
 			// MY_VAR="\z" -> strconv.Unquote fails, parseValue returns "\z"
