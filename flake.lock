@@ -18,6 +18,48 @@
         "type": "github"
       }
     },
+    "limmat": {
+      "inputs": {
+        "naersk": "naersk",
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1750851759,
+        "narHash": "sha256-huZlLkKhHJWdxFaP2gj2i1el8INCdNSJFTc3OXHD1Ew=",
+        "owner": "bjackman",
+        "repo": "limmat",
+        "rev": "09e35f4dd9f74de69b7389e41e9094e73d5fafa6",
+        "type": "github"
+      },
+      "original": {
+        "owner": "bjackman",
+        "repo": "limmat",
+        "type": "github"
+      }
+    },
+    "naersk": {
+      "inputs": {
+        "nixpkgs": [
+          "limmat",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1745925850,
+        "narHash": "sha256-cyAAMal0aPrlb1NgzMxZqeN1mAJ2pJseDhm2m6Um8T0=",
+        "owner": "nix-community",
+        "repo": "naersk",
+        "rev": "38bc60bbc157ae266d4a0c96671c6c742ee17a5f",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-community",
+        "repo": "naersk",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1750400657,
@@ -37,6 +79,7 @@
     "root": {
       "inputs": {
         "flake-utils": "flake-utils",
+        "limmat": "limmat",
         "nixpkgs": "nixpkgs"
       }
     },

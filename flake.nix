@@ -4,9 +4,13 @@
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-25.05";
     flake-utils.url = "github:numtide/flake-utils";
+    limmat = {
+      url = "github:bjackman/limmat";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
+  outputs = { self, nixpkgs, flake-utils, limmat }:
     flake-utils.lib.eachDefaultSystem (system:
       let pkgs = import nixpkgs { inherit system; }; in
       {
@@ -33,6 +37,9 @@
         apps = rec {
           falba = flake-utils.lib.mkApp { drv = self.packages.${system}.falba-with-duckdb; };
           default = falba;
+        };
+        devShells.default = pkgs.mkShell {
+          packages = [ limmat.packages."${system}".default ];
         };
       }
     );
