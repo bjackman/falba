@@ -371,10 +371,9 @@ func TestShellvarParser_QuotingBugs(t *testing.T) {
 
 func TestShellvarParser_Error(t *testing.T) {
 	testCases := []struct {
-		desc        string
-		content     string
-		parser      *parser.Parser
-		expectError bool // True if any error, if false, means ErrParseFailure from Extract
+		desc    string
+		content string
+		parser  *parser.Parser
 	}{
 		{
 			desc:    "malformed line (no equals) - var not found",
@@ -407,10 +406,8 @@ func TestShellvarParser_Error(t *testing.T) {
 			if err == nil {
 				t.Fatalf("Parse() expected error, got nil")
 			}
-			if !tc.expectError && !errors.Is(err, parser.ErrParseFailure) {
+			if !errors.Is(err, parser.ErrParseFailure) {
 				t.Errorf("Parse() expected ErrParseFailure, got %v", err)
-			} else if tc.expectError && errors.Is(err, parser.ErrParseFailure) {
-				t.Errorf("Parse() expected a fatal error, but got ErrParseFailure: %v", err)
 			}
 		})
 	}
