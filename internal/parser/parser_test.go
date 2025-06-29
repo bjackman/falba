@@ -392,12 +392,6 @@ func TestShellvarParser_Error(t *testing.T) {
 			parser:  mustNewShellvarParser(t, "MY_INT_VAR", "my_int_fact", falba.ValueInt),
 		},
 		{
-			desc:        "extractor creation fails (empty var name)",
-			content:     "FOO=bar", // Content doesn't matter here
-			parser:      nil,       // Indicates test is about parser (extractor) creation
-			expectError: true,      // Expect a non-ErrParseFailure, a setup error
-		},
-		{
 			desc: "invalid escape for strconv.Unquote then type mismatch (int)",
 			// MY_VAR="\z" -> strconv.Unquote fails, parseValue returns "\z"
 			// falba.ParseValue("\z", int) fails.
@@ -407,9 +401,6 @@ func TestShellvarParser_Error(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		if tc.parser == nil { // Skip tests where parser setup itself is the test
-			continue
-		}
 		t.Run(tc.desc, func(t *testing.T) {
 			artifact := fakeArtifact(t, tc.content)
 			_, err := tc.parser.Parse(artifact)
