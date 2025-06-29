@@ -232,20 +232,11 @@ func (e *JSONPathExtractor) Extract(artifact *falba.Artifact) (falba.Value, erro
 	case falba.ValueBool:
 		val, ok := gotVal.(bool)
 		if !ok {
-			// Try to parse from string if it's not directly a bool (e.g. "true" in JSON)
-			sVal, sOk := gotVal.(string)
-			if !sOk {
-				return nil, fmt.Errorf("%w: JSONPath returned %T, wanted bool or string representation of bool", ErrParseFailure, gotVal)
-			}
-			parsedVal, err := falba.ParseValue(sVal, e.resultType)
-			if err != nil {
-				return nil, fmt.Errorf("%w: could not parse string %q as bool: %v", ErrParseFailure, sVal, err)
-			}
-			return parsedVal, nil
+			return nil, fmt.Errorf("%w: JSONPath returned %T, wanted bool", ErrParseFailure, gotVal)
 		}
 		return &falba.BoolValue{Value: val}, nil
 	default:
-		panic(fmt.Sprintf("unimplemented value type %v in JSONPathExtractor", e.resultType))
+		panic("unimplemented")
 	}
 }
 

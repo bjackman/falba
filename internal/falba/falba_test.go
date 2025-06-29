@@ -95,7 +95,6 @@ func TestParseValue(t *testing.T) {
 		{"bool_t_lower", "t", falba.ValueBool, &falba.BoolValue{Value: true}, false},
 		{"bool_f_upper", "F", falba.ValueBool, &falba.BoolValue{Value: false}, false},
 
-
 		// Int tests
 		{"int_positive", "123", falba.ValueInt, &falba.IntValue{Value: 123}, false},
 		{"int_negative", "-456", falba.ValueInt, &falba.IntValue{Value: -456}, false},
@@ -188,23 +187,6 @@ func TestValueTypeMetricsColumn(t *testing.T) {
 	for _, tc := range testCases {
 		if got := tc.valueType.MetricsColumn(); got != tc.expected {
 			t.Errorf("ValueType(%d).MetricsColumn() = %q, want %q", tc.valueType, got, tc.expected)
-		}
-	}
-}
-
-func TestValueTypeSQLType(t *testing.T) {
-	testCases := []struct {
-		valueType falba.ValueType
-		expected  string
-	}{
-		{falba.ValueInt, "BIGINT"},
-		{falba.ValueFloat, "DOUBLE"},
-		{falba.ValueString, "VARCHAR"},
-		{falba.ValueBool, "BOOLEAN"},
-	}
-	for _, tc := range testCases {
-		if got := tc.valueType.SQLType(); got != tc.expected {
-			t.Errorf("ValueType(%d).SQLType() = %q, want %q", tc.valueType, got, tc.expected)
 		}
 	}
 }

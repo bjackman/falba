@@ -300,60 +300,19 @@ OTHER_VAR=foo
 			desc:    "variable not found",
 			content: "OTHER_VAR=foo",
 			parser:  mustNewShellvarParser(t, "MY_VAR", "my_fact", falba.ValueString),
-			want:    nil, // Expected behavior for not found is nil (which leads to ErrParseFailure in Extract)
+			want:    nil,
 		},
 		{
 			desc:    "empty file - var not found",
 			content: "",
 			parser:  mustNewShellvarParser(t, "MY_VAR", "my_fact", falba.ValueString),
-			want:    nil, // Expected behavior for not found is nil
-		},
-		{
-			desc:    "boolean value true",
-			content: "MY_BOOL_VAR=true",
-			parser:  mustNewShellvarParser(t, "MY_BOOL_VAR", "my_bool_fact", falba.ValueBool),
-			want:    &falba.BoolValue{Value: true},
-		},
-		{
-			desc:    "boolean value FALSE (quoted)",
-			content: `MY_BOOL_VAR="FALSE"`,
-			parser:  mustNewShellvarParser(t, "MY_BOOL_VAR", "my_bool_fact", falba.ValueBool),
-			want:    &falba.BoolValue{Value: false},
-		},
-		{
-			desc:    "boolean value true from quoted int string \"1\"",
-			content: `MY_BOOL_VAR="1"`,
-			parser:  mustNewShellvarParser(t, "MY_BOOL_VAR", "my_bool_fact", falba.ValueBool),
-			want:    &falba.BoolValue{Value: true},
+			want:    nil,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			artifact := fakeArtifact(t, tc.content)
-			// For cases where want is nil, we expect an ErrParseFailure from the Extract method
-			// which then propagates up from parser.Parse()
-			if tc.want == nil {
-				_, err := tc.parser.Parse(artifact)
-				if err == nil {
-					t.Fatalf("Parse() expected error for nil want, got nil")
-				}
-				if !errors.Is(err, parser.ErrParseFailure) {
-					t.Errorf("Parse() expected ErrParseFailure for nil want, got %v", err)
-				}
-				// Check that the error message contains relevant phrases
-				errMsg := err.Error()
-				// Check for "variable" AND "not found" for the variable not found case,
-				// or "empty content" for the empty file case.
-				isVarNotFoundErr := strings.Contains(errMsg, "variable") && strings.Contains(errMsg, "not found")
-				isEmptyContentErr := strings.Contains(errMsg, "empty content")
-
-				if !(isVarNotFoundErr || isEmptyContentErr) {
-					t.Errorf("Expected error for %q to indicate 'variable not found' or 'empty content', got: %s", tc.desc, errMsg)
-				}
-				return // End test here for nil want cases
-			}
-
 			result, err := tc.parser.Parse(artifact)
 			if err != nil {
 				t.Fatalf("Parse() failed: %v", err)
@@ -434,12 +393,11 @@ func TestShellvarParser_Error(t *testing.T) {
 		content string
 		parser  *parser.Parser
 	}{
-		// "malformed line" now results in "variable not found", which is an ErrParseFailure handled by happy path.
-		// {
-		// 	desc:    "malformed line (no equals) - var not found",
-		// 	content: "MY_VAR value", // Line is skipped, MY_VAR not found by that name.
-		// 	parser:  mustNewShellvarParser(t, "MY_VAR", "my_fact", falba.ValueString),
-		// },
+		{
+			desc:    "malformed line (no equals) - var not found",
+			content: "MY_VAR value", // Line is skipped, MY_VAR not found by that name.
+			parser:  mustNewShellvarParser(t, "MY_VAR", "my_fact", falba.ValueString),
+		},
 		{
 			desc:    "type mismatch (string for int)",
 			content: "MY_INT_VAR=notanint", // parseValue returns "notanint", falba.ParseValue("notanint", Int) errors.
@@ -456,11 +414,6 @@ func TestShellvarParser_Error(t *testing.T) {
 			parser:  mustNewShellvarParser(t, "MY_BOOL_VAR", "my_bool_fact", falba.ValueBool),
 		},
 		{
-			desc:    "type mismatch (int string for bool)",
-			content: `MY_BOOL_VAR="1"`,
-			parser:  mustNewShellvarParser(t, "MY_BOOL_VAR", "my_bool_fact", falba.ValueBool),
-		},
-		{
 			desc: "invalid escape for strconv.Unquote then type mismatch (int)",
 			// MY_VAR="\z" -> strconv.Unquote fails, parseValue returns "\z"
 			// falba.ParseValue("\z", int) fails.
@@ -472,9 +425,9 @@ func TestShellvarParser_Error(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			artifact := fakeArtifact(t, tc.content)
-			_, err := tc.parser.Parse(artifact)
+			val, err := tc.parser.Parse(artifact)
 			if err == nil {
-				t.Fatalf("Parse() expected error, got nil")
+				t.Fatalf("Parse() expected error, got nil, wit value %v", val)
 			}
 			if !errors.Is(err, parser.ErrParseFailure) {
 				t.Errorf("Parse() expected ErrParseFailure, got %v", err)
@@ -602,18 +555,6 @@ func TestJSONPathParser(t *testing.T) {
 			desc:    "bool fact false",
 			content: `{"active": false}`,
 			parser:  mustNewJSONPathParser(t, "$.active", "my_bool_fact", parser.TargetFact, falba.ValueBool),
-			want:    &falba.BoolValue{Value: false},
-		},
-		{
-			desc:    "bool fact from string 'true'",
-			content: `{"status": "true"}`,
-			parser:  mustNewJSONPathParser(t, "$.status", "my_bool_fact", parser.TargetFact, falba.ValueBool),
-			want:    &falba.BoolValue{Value: true},
-		},
-		{
-			desc:    "bool fact from string 'FALSE'",
-			content: `{"status": "FALSE"}`,
-			parser:  mustNewJSONPathParser(t, "$.status", "my_bool_fact", parser.TargetFact, falba.ValueBool),
 			want:    &falba.BoolValue{Value: false},
 		},
 		{

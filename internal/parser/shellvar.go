@@ -71,13 +71,7 @@ func (e *ShellvarExtractor) Extract(artifact *falba.Artifact) (falba.Value, erro
 		return nil, fmt.Errorf("scanning lines: %v", err)
 	}
 
-	// If we reach here, the variable was not found in the file.
-	// Or the file was empty and thus the variable was not found.
-	// Check if content was empty to give a slightly more specific error.
-	if len(strings.TrimSpace(string(content))) == 0 {
-		return nil, fmt.Errorf("%w: empty content, variable %q not found", ErrParseFailure, e.VarName)
-	}
-	return nil, fmt.Errorf("%w: variable %q not found", ErrParseFailure, e.VarName)
+	return nil, nil
 }
 
 func (e *ShellvarExtractor) parseValue(rawValue string) (string, error) {

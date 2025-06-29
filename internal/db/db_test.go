@@ -368,8 +368,8 @@ func TestInsertIntoDuckDB(t *testing.T) {
 				TestName: "test1",
 				ResultID: "result1",
 				Facts: map[string]falba.Value{
-					"fact1": &falba.StringValue{Value: "value1"},
-					"fact2": &falba.IntValue{Value: 42},
+					"fact1":          &falba.StringValue{Value: "value1"},
+					"fact2":          &falba.IntValue{Value: 42},
 					"fact_bool_true": &falba.BoolValue{Value: true},
 				},
 				Metrics: []*falba.Metric{
@@ -382,7 +382,7 @@ func TestInsertIntoDuckDB(t *testing.T) {
 				TestName: "test2",
 				ResultID: "result2",
 				Facts: map[string]falba.Value{
-					"fact3": &falba.StringValue{Value: "a_string_that_is_true"}, // Keep as string to test string "true"
+					"fact3":           &falba.StringValue{Value: "true"},
 					"fact_bool_false": &falba.BoolValue{Value: false},
 				},
 				Metrics: []*falba.Metric{
@@ -494,7 +494,7 @@ func TestInsertIntoDuckDB(t *testing.T) {
 		{"test2",
 			sql.NullString{},
 			sql.NullInt64{},
-			sql.NullString{Valid: true, String: "a_string_that_is_true"},
+			sql.NullString{Valid: true, String: "true"},
 			sql.NullBool{},
 			sql.NullBool{Valid: true, Bool: false},
 		},
