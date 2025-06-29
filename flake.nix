@@ -14,6 +14,7 @@
     flake-utils.lib.eachDefaultSystem (system:
       let pkgs = import nixpkgs { inherit system; }; in
       {
+        formatter = pkgs.nixfmt-tree;
         packages = rec {
           # Just falba itself.
           falba = pkgs.buildGoModule {
