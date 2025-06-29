@@ -35,6 +35,15 @@
                 "name": "fio_randread_tmpfs_read_iops",
                 "type": "float"
             }
+        },
+        "instrumented": {
+            "type": "artifact_presence",
+            "artifact_regexp": "bpftrace_asi_exits.log",
+            "result": true,
+            "fact": {
+                "name": "instrumented",
+                "type": "bool"
+            }
         }
     }
 }

@@ -265,6 +265,23 @@ func ValueValue(v Value) any {
 	}
 }
 
+func ValueFromAny(a any) (Value, error) {
+	switch v := a.(type) {
+	case int64:
+		return &IntValue{Value: v}, nil
+	case int:
+		return &IntValue{Value: int64(v)}, nil
+	case float64:
+		return &FloatValue{Value: v}, nil
+	case string:
+		return &StringValue{Value: v}, nil
+	case bool:
+		return &BoolValue{Value: v}, nil
+	default:
+		return nil, fmt.Errorf("Unknown value type %T", a)
+	}
+}
+
 func ParseValue(s string, t ValueType) (Value, error) {
 	switch t {
 	case ValueInt:

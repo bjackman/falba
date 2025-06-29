@@ -307,6 +307,21 @@ func FromConfig(rawConfig json.RawMessage, name string) (*Parser, error) {
 		if err != nil {
 			return nil, fmt.Errorf("setting up Shellvar extractor: %v", err)
 		}
+	case "artifact_presence":
+		decoder := json.NewDecoder(strings.NewReader(string(rawConfig)))
+		decoder.DisallowUnknownFields()
+		var config ArtifactPresenceConfig
+		if err := decoder.Decode(&config); err != nil {
+			return nil, fmt.Errorf("decoding artifact_presence parser config: %v", err)
+		}
+		if err := config.ValidateFields(); err != nil {
+			return nil, fmt.Errorf("invalid %q parser config: %v", baseConfig.Type, err)
+		}
+		result, err := falba.ValueFromAny(config.Result)
+		if err != nil {
+			return nil, fmt.Errorf("invalid %q parser config: %v", baseConfig.Type, err)
+		}
+		extractor = &ArtifactPresenceExtractor{result: result}
 	default:
 		return nil, fmt.Errorf("unknown parser type %q", baseConfig.Type)
 	}
