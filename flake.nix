@@ -10,9 +10,18 @@
     };
   };
 
-  outputs = { self, nixpkgs, flake-utils, limmat }:
-    flake-utils.lib.eachDefaultSystem (system:
-      let pkgs = import nixpkgs { inherit system; }; in
+  outputs =
+    {
+      self,
+      nixpkgs,
+      flake-utils,
+      limmat,
+    }:
+    flake-utils.lib.eachDefaultSystem (
+      system:
+      let
+        pkgs = import nixpkgs { inherit system; };
+      in
       {
         formatter = pkgs.nixfmt-tree;
         packages = rec {
@@ -21,18 +30,24 @@
             name = "falba";
             vendorHash = "sha256-Qdd5dImFn2LI2q1BAEdu3MLkakpHiqd2LHAUCzvyjDI=";
             src = ./.;
-            buildInputs = with pkgs; [ arrow-cpp duckdb ];
+            buildInputs = with pkgs; [
+              arrow-cpp
+              duckdb
+            ];
           };
           # Wrapped falba that includes the duckdb binary so that you don't need
           # to set --duckdb-cli when using the `falba sql` command.
-          falba-with-duckdb = pkgs.runCommand "falba" {
-            nativeBuildInputs = [ pkgs.makeWrapper ];
-          } ''
-            mkdir -p $out/bin
+          falba-with-duckdb =
+            pkgs.runCommand "falba"
+              {
+                nativeBuildInputs = [ pkgs.makeWrapper ];
+              }
+              ''
+                mkdir -p $out/bin
 
-            makeWrapper ${falba}/bin/falba $out/bin/falba \
-              --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.duckdb ]}
-          '';
+                makeWrapper ${falba}/bin/falba $out/bin/falba \
+                  --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.duckdb ]}
+              '';
           default = falba-with-duckdb;
         };
         apps = rec {
