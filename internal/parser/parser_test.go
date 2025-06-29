@@ -119,22 +119,22 @@ func TestParser(t *testing.T) {
 	}
 }
 
-func TestShellvarParser(t *testing.T) {
-	mustNewShellvarParser := func(t *testing.T, varName string, factName string, valueType falba.ValueType) *parser.Parser {
-		t.Helper()
-		extractor, err := parser.NewShellvarExtractor(varName, valueType)
-		if err != nil {
-			t.Fatalf("NewShellvarExtractor(%q, %v) failed: %v", varName, valueType, err)
-		}
-		// ArtifactRE is "." to match any artifact name for these tests
-		p, err := parser.NewParser("testShellvar", ".", &parser.ParserTarget{Name: factName, TargetType: parser.TargetFact, ValueType: valueType}, extractor)
-		if err != nil {
-			t.Fatalf("NewParser failed: %v", err)
-		}
-		return p
+func mustNewShellvarParser(t *testing.T, varName string, factName string, valueType falba.ValueType) *parser.Parser {
+	t.Helper()
+	extractor, err := parser.NewShellvarExtractor(varName, valueType)
+	if err != nil {
+		t.Fatalf("NewShellvarExtractor(%q, %v) failed: %v", varName, valueType, err)
 	}
+	// ArtifactRE is "." to match any artifact name for these tests
+	p, err := parser.NewParser("testShellvar", ".", &parser.ParserTarget{Name: factName, TargetType: parser.TargetFact, ValueType: valueType}, extractor)
+	if err != nil {
+		t.Fatalf("NewParser failed: %v", err)
+	}
+	return p
+}
 
-	happyPathTestCases := []struct {
+func TestShellvarParser_Happy(t *testing.T) {
+	testCases := []struct {
 		desc    string
 		content string
 		parser  *parser.Parser
@@ -313,7 +313,7 @@ OTHER_VAR=foo
 		},
 	}
 
-	for _, tc := range happyPathTestCases {
+	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			artifact := fakeArtifact(t, tc.content)
 			result, err := tc.parser.Parse(artifact)
@@ -337,8 +337,10 @@ OTHER_VAR=foo
 			}
 		})
 	}
+}
 
-	errorTestCases := []struct {
+func TestShellvarParser_Error(t *testing.T) {
+	testCases := []struct {
 		desc        string
 		content     string
 		parser      *parser.Parser
@@ -380,15 +382,7 @@ OTHER_VAR=foo
 		},
 	}
 
-	// Test extractor creation failure separately
-	t.Run("extractor creation fails (empty var name)", func(t *testing.T) {
-		_, err := parser.NewShellvarExtractor("", falba.ValueString)
-		if err == nil {
-			t.Error("Expected error for empty var name, got nil")
-		}
-	})
-
-	for _, tc := range errorTestCases {
+	for _, tc := range testCases {
 		if tc.parser == nil { // Skip tests where parser setup itself is the test
 			continue
 		}
@@ -406,71 +400,80 @@ OTHER_VAR=foo
 		})
 	}
 
-	// bjackman: I have commented out Jules' broken test.
-	// 	// Test FromConfig for shellvar
-	// 	t.Run("FromConfig shellvar", func(t *testing.T) {
-	// 		configJSON := `{
-	// 			"type": "shellvar",
-	// 			"artifact_regexp": "os-release",
-	// 			"var": "PRETTY_NAME",
-	// 			"fact": {
-	// 				"name": "os_pretty_name",
-	// 				"type": "string"
-	// 			}
-	// 		}`
-	// 		p, err := parser.FromConfig([]byte(configJSON), "shellvar_test_parser")
-	// 		if err != nil {
-	// 			t.Fatalf("FromConfig failed: %v", err)
-	// 		}
-	// 		if p.Name != "shellvar_test_parser" {
-	// 			t.Errorf("Expected parser name %q, got %q", "shellvar_test_parser", p.Name)
-	// 		}
-	// 		if p.ArtifactRE.String() != "os-release" {
-	// 			t.Errorf("Expected ArtifactRE %q, got %q", "os-release", p.ArtifactRE.String())
-	// 		}
-	// 		if p.Target.Name != "os_pretty_name" || p.Target.ValueType != falba.ValueString || p.Target.TargetType != parser.TargetFact {
-	// 			t.Errorf("Unexpected target: %+v", p.Target)
-	// 		}
-	// 		// Check if the extractor is ShellvarExtractor (type assertion)
-	// 		shellvarExtractor, ok := p.Extractor.(*parser.ShellvarExtractor)
-	// 		if !ok {
-	// 			t.Fatalf("Extractor is not of type *ShellvarExtractor, got %T", p.Extractor)
-	// 		}
-	// 		if shellvarExtractor.VarName != "PRETTY_NAME" {
-	// 			t.Errorf("Expected extractor VarName %q, got %q", "PRETTY_NAME", shellvarExtractor.VarName)
-	// 		}
+}
 
-	// 		// Test with actual content
-	// 		content := `NAME="Ubuntu"
-	// VERSION="20.04.3 LTS (Focal Fossa)"
-	// ID=ubuntu
-	// ID_LIKE=debian
-	// PRETTY_NAME="Ubuntu 20.04.3 LTS"
-	// VERSION_ID="20.04"
-	// HOME_URL="https://www.ubuntu.com/"
-	// SUPPORT_URL="https://help.ubuntu.com/"
-	// BUG_REPORT_URL="https://bugs.launchpad.net/ubuntu/"
-	// PRIVACY_POLICY_URL="https://www.ubuntu.com/legal/terms-and-policies/privacy-policy"
-	// VERSION_CODENAME=focal
-	// UBUNTU_CODENAME=focal
-	// `
-	// 		artifact := fakeArtifact(t, content)
-	// 		result, err := p.Parse(artifact)
-	// 		if err != nil {
-	// 			t.Fatalf("Parse() with FromConfig parser failed: %v", err)
-	// 		}
-	// 		wantValue := &falba.StringValue{Value: "Ubuntu 20.04.3 LTS"}
-	// 		gotValue, ok := result.Facts["os_pretty_name"]
-	// 		if !ok {
-	// 			t.Fatalf("Fact 'os_pretty_name' not found in results")
-	// 		}
-	// 		if diff := cmp.Diff(wantValue, gotValue); diff != "" {
-	// 			t.Errorf("Parse() mismatch for FromConfig (-want +got):\n%s", diff)
-	// 		}
-	// 	})
+func TestNewShellvarExtractor_Error(t *testing.T) {
+	_, err := parser.NewShellvarExtractor("", falba.ValueString)
+	if err == nil {
+		t.Error("Expected error for empty var name, got nil")
+	}
+}
 
-	t.Run("FromConfig shellvar missing var", func(t *testing.T) {
-		configJSON := `{
+// bjackman: I have commented out Jules' broken test.
+// 	// Test FromConfig for shellvar
+// func TestShellvarFromConfig(t *testing.T) {
+// 		configJSON := `{
+// 			"type": "shellvar",
+// 			"artifact_regexp": "os-release",
+// 			"var": "PRETTY_NAME",
+// 			"fact": {
+// 				"name": "os_pretty_name",
+// 				"type": "string"
+// 			}
+// 		}`
+// 		p, err := parser.FromConfig([]byte(configJSON), "shellvar_test_parser")
+// 		if err != nil {
+// 			t.Fatalf("FromConfig failed: %v", err)
+// 		}
+// 		if p.Name != "shellvar_test_parser" {
+// 			t.Errorf("Expected parser name %q, got %q", "shellvar_test_parser", p.Name)
+// 		}
+// 		if p.ArtifactRE.String() != "os-release" {
+// 			t.Errorf("Expected ArtifactRE %q, got %q", "os-release", p.ArtifactRE.String())
+// 		}
+// 		if p.Target.Name != "os_pretty_name" || p.Target.ValueType != falba.ValueString || p.Target.TargetType != parser.TargetFact {
+// 			t.Errorf("Unexpected target: %+v", p.Target)
+// 		}
+// 		// Check if the extractor is ShellvarExtractor (type assertion)
+// 		shellvarExtractor, ok := p.Extractor.(*parser.ShellvarExtractor)
+// 		if !ok {
+// 			t.Fatalf("Extractor is not of type *ShellvarExtractor, got %T", p.Extractor)
+// 		}
+// 		if shellvarExtractor.VarName != "PRETTY_NAME" {
+// 			t.Errorf("Expected extractor VarName %q, got %q", "PRETTY_NAME", shellvarExtractor.VarName)
+// 		}
+
+// 		// Test with actual content
+// 		content := `NAME="Ubuntu"
+// VERSION="20.04.3 LTS (Focal Fossa)"
+// ID=ubuntu
+// ID_LIKE=debian
+// PRETTY_NAME="Ubuntu 20.04.3 LTS"
+// VERSION_ID="20.04"
+// HOME_URL="https://www.ubuntu.com/"
+// SUPPORT_URL="https://help.ubuntu.com/"
+// BUG_REPORT_URL="https://bugs.launchpad.net/ubuntu/"
+// PRIVACY_POLICY_URL="https://www.ubuntu.com/legal/terms-and-policies/privacy-policy"
+// VERSION_CODENAME=focal
+// UBUNTU_CODENAME=focal
+// `
+// 		artifact := fakeArtifact(t, content)
+// 		result, err := p.Parse(artifact)
+// 		if err != nil {
+// 			t.Fatalf("Parse() with FromConfig parser failed: %v", err)
+// 		}
+// 		wantValue := &falba.StringValue{Value: "Ubuntu 20.04.3 LTS"}
+// 		gotValue, ok := result.Facts["os_pretty_name"]
+// 		if !ok {
+// 			t.Fatalf("Fact 'os_pretty_name' not found in results")
+// 		}
+// 		if diff := cmp.Diff(wantValue, gotValue); diff != "" {
+// 			t.Errorf("Parse() mismatch for FromConfig (-want +got):\n%s", diff)
+// 		}
+// }
+
+func TestShellvarParserFromConfig_MissingVar(t *testing.T) {
+	configJSON := `{
 			"type": "shellvar",
 			"artifact_regexp": "os-release",
 			"fact": {
@@ -478,14 +481,13 @@ OTHER_VAR=foo
 				"type": "string"
 			}
 		}`
-		_, err := parser.FromConfig([]byte(configJSON), "shellvar_test_parser")
-		if err == nil {
-			t.Fatal("FromConfig expected error for missing 'var', got nil")
-		}
-		if !strings.Contains(err.Error(), "missing/empty 'var' field") {
-			t.Errorf("Expected error about missing 'var', got: %v", err)
-		}
-	})
+	_, err := parser.FromConfig([]byte(configJSON), "shellvar_test_parser")
+	if err == nil {
+		t.Fatal("FromConfig expected error for missing 'var', got nil")
+	}
+	if !strings.Contains(err.Error(), "missing/empty 'var' field") {
+		t.Errorf("Expected error about missing 'var', got: %v", err)
+	}
 }
 
 func TestReservedFactNamesRejected(t *testing.T) {
