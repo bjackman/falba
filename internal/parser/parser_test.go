@@ -439,68 +439,49 @@ func TestNewShellvarExtractor_Error(t *testing.T) {
 	}
 }
 
-// bjackman: I have commented out Jules' broken test.
-// 	// Test FromConfig for shellvar
-// func TestShellvarFromConfig(t *testing.T) {
-// 		configJSON := `{
-// 			"type": "shellvar",
-// 			"artifact_regexp": "os-release",
-// 			"var": "PRETTY_NAME",
-// 			"fact": {
-// 				"name": "os_pretty_name",
-// 				"type": "string"
-// 			}
-// 		}`
-// 		p, err := parser.FromConfig([]byte(configJSON), "shellvar_test_parser")
-// 		if err != nil {
-// 			t.Fatalf("FromConfig failed: %v", err)
-// 		}
-// 		if p.Name != "shellvar_test_parser" {
-// 			t.Errorf("Expected parser name %q, got %q", "shellvar_test_parser", p.Name)
-// 		}
-// 		if p.ArtifactRE.String() != "os-release" {
-// 			t.Errorf("Expected ArtifactRE %q, got %q", "os-release", p.ArtifactRE.String())
-// 		}
-// 		if p.Target.Name != "os_pretty_name" || p.Target.ValueType != falba.ValueString || p.Target.TargetType != parser.TargetFact {
-// 			t.Errorf("Unexpected target: %+v", p.Target)
-// 		}
-// 		// Check if the extractor is ShellvarExtractor (type assertion)
-// 		shellvarExtractor, ok := p.Extractor.(*parser.ShellvarExtractor)
-// 		if !ok {
-// 			t.Fatalf("Extractor is not of type *ShellvarExtractor, got %T", p.Extractor)
-// 		}
-// 		if shellvarExtractor.VarName != "PRETTY_NAME" {
-// 			t.Errorf("Expected extractor VarName %q, got %q", "PRETTY_NAME", shellvarExtractor.VarName)
-// 		}
+func TestShellvarFromConfig(t *testing.T) {
+	configJSON := `{
+		"type": "shellvar",
+		"artifact_regexp": "os-release",
+		"var": "PRETTY_NAME",
+		"fact": {
+			"name": "os_pretty_name",
+			"type": "string"
+		}
+	}`
+	p, err := parser.FromConfig([]byte(configJSON), "shellvar_test_parser")
+	if err != nil {
+		t.Fatalf("FromConfig failed: %v", err)
+	}
 
-// 		// Test with actual content
-// 		content := `NAME="Ubuntu"
-// VERSION="20.04.3 LTS (Focal Fossa)"
-// ID=ubuntu
-// ID_LIKE=debian
-// PRETTY_NAME="Ubuntu 20.04.3 LTS"
-// VERSION_ID="20.04"
-// HOME_URL="https://www.ubuntu.com/"
-// SUPPORT_URL="https://help.ubuntu.com/"
-// BUG_REPORT_URL="https://bugs.launchpad.net/ubuntu/"
-// PRIVACY_POLICY_URL="https://www.ubuntu.com/legal/terms-and-policies/privacy-policy"
-// VERSION_CODENAME=focal
-// UBUNTU_CODENAME=focal
-// `
-// 		artifact := fakeArtifact(t, content)
-// 		result, err := p.Parse(artifact)
-// 		if err != nil {
-// 			t.Fatalf("Parse() with FromConfig parser failed: %v", err)
-// 		}
-// 		wantValue := &falba.StringValue{Value: "Ubuntu 20.04.3 LTS"}
-// 		gotValue, ok := result.Facts["os_pretty_name"]
-// 		if !ok {
-// 			t.Fatalf("Fact 'os_pretty_name' not found in results")
-// 		}
-// 		if diff := cmp.Diff(wantValue, gotValue); diff != "" {
-// 			t.Errorf("Parse() mismatch for FromConfig (-want +got):\n%s", diff)
-// 		}
-// }
+	content := `NAME="Ubuntu"
+VERSION="20.04.3 LTS (Focal Fossa)"
+ID=ubuntu
+ID_LIKE=debian
+PRETTY_NAME="Ubuntu 20.04.3 LTS"
+VERSION_ID="20.04"
+HOME_URL="https://www.ubuntu.com/"
+SUPPORT_URL="https://help.ubuntu.com/"
+BUG_REPORT_URL="https://bugs.launchpad.net/ubuntu/"
+PRIVACY_POLICY_URL="https://www.ubuntu.com/legal/terms-and-policies/privacy-policy"
+VERSION_CODENAME=focal
+UBUNTU_CODENAME=focal
+`
+	path := filepath.Join(t.TempDir(), "os-release")
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatalf("Setting up fake artifact: %v", err)
+	}
+	result, err := p.Parse(&falba.Artifact{Name: "os-release", Path: path})
+	if err != nil {
+		t.Fatalf("Parse() with FromConfig parser failed: %v", err)
+	}
+	wantFacts := map[string]falba.Value{
+		"os_pretty_name": &falba.StringValue{Value: "Ubuntu 20.04.3 LTS"},
+	}
+	if diff := cmp.Diff(wantFacts, result.Facts); diff != "" {
+		t.Errorf("Parse() mismatch for FromConfig (-want +got):\n%s", diff)
+	}
+}
 
 func TestShellvarParserFromConfig_MissingVar(t *testing.T) {
 	configJSON := `{
