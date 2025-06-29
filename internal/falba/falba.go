@@ -278,7 +278,7 @@ func ValueFromAny(a any) (Value, error) {
 	case bool:
 		return &BoolValue{Value: v}, nil
 	default:
-		return nil, fmt.Errorf("Unknown value type %T", a)
+		return nil, fmt.Errorf("unknown value type %T", a)
 	}
 }
 
