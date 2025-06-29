@@ -55,7 +55,10 @@
           default = falba;
         };
         devShells.default = pkgs.mkShell {
-          packages = [ limmat.packages."${system}".default ];
+          packages = [
+            limmat.packages."${system}".default
+            pkgs.just
+          ];
           inputsFrom = [ self.packages."${system}".falba ];
         };
       }
