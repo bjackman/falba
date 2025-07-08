@@ -51,7 +51,7 @@ func cmdCmp(cmd *cobra.Command, args []string) error {
 	// Just to produce a nice error message, check the fact exists.
 	_, ok := falbaDB.FactTypes[cmpFlagFact]
 	if !ok {
-		return fmt.Errorf("no fact %q (have: %v)", cmpFlagMetric, slices.Collect(maps.Keys(falbaDB.FactTypes)))
+		return fmt.Errorf("no fact %q (have: %v)", cmpFlagFact, slices.Collect(maps.Keys(falbaDB.FactTypes)))
 	}
 
 	groups, err := anal.GroupByFact(sqlDB, falbaDB, cmpFlagFact, cmpFlagMetric, cmpFlagFilter)
