@@ -51,5 +51,5 @@ func Execute() {
 func init() {
 	// "Persistent" means flags that are inherited by subcommands. Persistent
 	// flags on the root command are global flags.
-	rootCmd.PersistentFlags().StringVar(&flagResultDB, "result-db", "", "Path to Falba DB root")
+	rootCmd.PersistentFlags().StringVar(&flagResultDB, "result-db", "./results", "Path to Falba DB root")
 }
