@@ -236,7 +236,7 @@ func (h *Histogram) Scan(v any) error {
 		bins:        bins,
 		maxBoundary: maxBoundary,
 		maxSize:     maxSize,
-		TotalSize: totalSize,
+		TotalSize:   totalSize,
 	}
 	return nil
 }
