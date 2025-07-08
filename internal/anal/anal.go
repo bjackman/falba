@@ -63,7 +63,7 @@ var checkFuncDepTemplate = template.Must(
 		GROUP BY {{ .ExperimentFact }}
 		-- I guess you can't COUNT-DISTINCT multiple columns, so we have to
 		-- squash them into a string somehow...
-		HAVING COUNT(DISTINCT test_name || '-' || {{ join .OtherFacts ", " }}) > 1
+		HAVING COUNT(DISTINCT test_name || '-' || {{ join .OtherFacts " || " }}) > 1
 		-- Just need a single example, don't care which.
 		LIMIT 1
 	)
