@@ -63,7 +63,17 @@ var checkFuncDepTemplate = template.Must(
 		GROUP BY {{ .ExperimentFact }}
 		-- I guess you can't COUNT-DISTINCT multiple columns, so we have to
 		-- squash them into a string somehow...
-		HAVING COUNT(DISTINCT test_name || '-' || {{ join .OtherFacts " || " }}) > 1
+		-- Also if any of th columns contain NULL we'll end up with NULL in the
+		-- resulting string. We need the IFNULL trick to get around that. But
+		-- then because we don't know the type of the column we need to also
+		-- cast to string so that all the rows have the same type for a given
+		-- column.
+		HAVING COUNT(DISTINCT test_name || '-' ||
+			{{ range $i, $fact := .OtherFacts -}}
+				{{- if $i -}} || {{ end -}}
+				IFNULL(CAST({{$fact}} AS VARCHAR), 'NULL')
+			{{- end -}}
+		) > 1
 		-- Just need a single example, don't care which.
 		LIMIT 1
 	)
