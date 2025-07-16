@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"github.com/bjackman/falba/internal/anal"
+	"github.com/bjackman/falba/internal/unit"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/spf13/cobra"
@@ -40,6 +41,68 @@ func transformBigNumber(v any) string {
 		log.Printf("No transformer logic for value of type %T", v)
 		return printer.Sprintf("%v", v)
 	}
+}
+
+func formatTime(v any, u *unit.Unit) string {
+	var val float64
+	switch t := v.(type) {
+	case float64:
+		val = t
+	case int:
+		val = float64(t)
+	case int64:
+		val = float64(t)
+	default:
+		return fmt.Sprintf("%v", v) // fallback
+	}
+
+	// Convert original value to nanoseconds to have a base unit.
+	var ns float64
+	switch u.ShortName {
+	case "ns":
+		ns = val
+	case "us":
+		ns = val * 1e3
+	case "ms":
+		ns = val * 1e6
+	case "s":
+		ns = val * 1e9
+	default:
+		// Not a time unit we can convert from.
+		return printer.Sprintf("%v%s", number.Decimal(val), u.ShortName)
+	}
+
+	// Now convert from nanoseconds to a more readable unit.
+	if ns < 1000 {
+		return printer.Sprintf("%.0fns", number.Decimal(ns))
+	}
+	us := ns / 1e3
+	if us < 1000 {
+		return printer.Sprintf("%.2fus", number.Decimal(us))
+	}
+	ms := us / 1e3
+	if ms < 1000 {
+		return printer.Sprintf("%.2fms", number.Decimal(ms))
+	}
+	s := ms / 1e3
+	if s < 60 {
+		return printer.Sprintf("%.2fs", number.Decimal(s))
+	}
+	min := s / 60
+	if min < 60 {
+		return printer.Sprintf("%.2fm", number.Decimal(min))
+	}
+	hr := min / 60
+	return printer.Sprintf("%.2fh", number.Decimal(hr))
+}
+
+func newTransformer(unit *unit.Unit) func(v any) string {
+	if unit != nil && unit.Family == "time" {
+		return func(v any) string {
+			return formatTime(v, unit)
+		}
+	}
+	return transformBigNumber
 }
 
 func cmdCmp(cmd *cobra.Command, args []string) error {
@@ -104,10 +167,11 @@ func cmdCmp(cmd *cobra.Command, args []string) error {
 			Row:    text.FormatDefault,
 		},
 	})
+	transformer := newTransformer(metricType.Unit)
 	t.SetColumnConfigs([]table.ColumnConfig{
-		{Name: "mean", Transformer: transformBigNumber},
-		{Name: "min", Transformer: transformBigNumber},
-		{Name: "max", Transformer: transformBigNumber},
+		{Name: "mean", Transformer: transformer},
+		{Name: "min", Transformer: transformer},
+		{Name: "max", Transformer: transformer},
 	})
 	t.SortBy([]table.SortBy{{Name: cmpFlagFact, Mode: table.Asc}})
 	t.Render()
