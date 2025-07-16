@@ -10,6 +10,7 @@ import (
 )
 
 func MustNewRegexpParser(t *testing.T, pattern string, metricName string, metricType falba.ValueType) *parser.Parser {
+	t.Helper()
 	e, err := parser.NewRegexpExtractor(pattern, metricType)
 	if err != nil {
 		t.Fatalf("Failed to construct extractor: %v", err)
@@ -27,6 +28,7 @@ func MustNewRegexpParser(t *testing.T, pattern string, metricName string, metric
 }
 
 func MustFilepathAbs(t *testing.T, path string) string {
+	t.Helper()
 	abs, err := filepath.Abs(path)
 	if err != nil {
 		t.Fatalf("Converting %v to absolute path: %v", path, err)
