@@ -96,6 +96,14 @@ func formatTime(v any, u *unit.Unit) string {
 	return printer.Sprintf("%.2fh", number.Decimal(hr))
 }
 
+func transformToPercentage(v any) string {
+	delta, ok := v.(float64)
+	if !ok {
+		return ""
+	}
+	return printer.Sprintf("%+.1f%%", number.Decimal(delta*100))
+}
+
 func newTransformer(unit *unit.Unit) func(v any) string {
 	if unit != nil && unit.Family == "time" {
 		return func(v any) string {
@@ -146,15 +154,32 @@ func cmdCmp(cmd *cobra.Command, args []string) error {
 	fmt.Printf("metric: %v   |  test: %v\n", metricString, allTests[0])
 	t := table.NewWriter()
 	t.SetOutputMirror(os.Stdout)
-	t.AppendHeader(table.Row{cmpFlagFact, "samples", "mean", "min", "histogram", "max"})
-	for factVal, group := range groups {
+	a.AppendHeader(table.Row{cmpFlagFact, "samples", "mean", "min", "histogram", "max", "Δμ"})
+
+	// Sort group keys so we have a consistent baseline.
+	groupKeys := slices.Collect(maps.Keys(groups))
+	slices.Sort(groupKeys)
+
+	var baselineMean float64
+	if len(groupKeys) > 0 {
+		baselineMean = groups[groupKeys[0]].Mean
+	}
+
+	for _, factVal := range groupKeys {
+		group := groups[factVal]
+		var delta any
+		if group.Mean != baselineMean {
+			delta = (group.Mean - baselineMean) / baselineMean
+		}
 		t.AppendRow(table.Row{
 			factVal,
 			group.Histogram.TotalSize,
 			group.Mean,
 			group.Min,
 			group.Histogram.PlotUnicode(),
-			group.Max})
+			group.Max,
+			delta,
+		})
 	}
 	t.SetStyle(table.Style{
 		Name: "mystyle",
@@ -172,8 +197,8 @@ func cmdCmp(cmd *cobra.Command, args []string) error {
 		{Name: "mean", Transformer: transformer},
 		{Name: "min", Transformer: transformer},
 		{Name: "max", Transformer: transformer},
+		{Name: "Δμ", Transformer: transformToPercentage},
 	})
-	t.SortBy([]table.SortBy{{Name: cmpFlagFact, Mode: table.Asc}})
 	t.Render()
 
 	return nil
