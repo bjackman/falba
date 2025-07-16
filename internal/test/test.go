@@ -7,6 +7,7 @@ import (
 
 	"github.com/bjackman/falba/internal/falba"
 	"github.com/bjackman/falba/internal/parser"
+	"github.com/bjackman/falba/internal/unit"
 )
 
 func MustNewRegexpParser(t *testing.T, pattern string, metricName string, metricType falba.ValueType) *parser.Parser {
@@ -34,4 +35,13 @@ func MustFilepathAbs(t *testing.T, path string) string {
 		t.Fatalf("Converting %v to absolute path: %v", path, err)
 	}
 	return abs
+}
+
+func MustParseUnit(t *testing.T, shortName string) *unit.Unit {
+	t.Helper()
+	u, err := unit.Parse(shortName)
+	if err != nil {
+		t.Fatalf("Failed to get unit for %q: %v", shortName, err)
+	}
+	return u
 }

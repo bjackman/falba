@@ -35,7 +35,7 @@ type DB struct {
 	// Keys of this map are the result ID.
 	Results     map[string]*falba.Result
 	FactTypes   map[string]falba.ValueType
-	MetricTypes map[string]falba.ValueType
+	MetricTypes map[string]falba.MetricType
 }
 
 // Er, I can't really explain this function except by translating the whole code
@@ -225,7 +225,7 @@ func ReadDB(rootDir string) (*DB, error) {
 	// While we're at it, also remember the fact types as they'll be used to
 	// construct a results tablellater.
 	factTypes := map[string]falba.ValueType{}
-	metricTypes := map[string]falba.ValueType{}
+	metricTypes := map[string]falba.MetricType{}
 	allTypes := map[string]falba.ValueType{}
 	for _, p := range parsers {
 		if t, ok := allTypes[p.Target.Name]; ok && p.Target.ValueType != t {
@@ -235,7 +235,10 @@ func ReadDB(rootDir string) (*DB, error) {
 		if p.Target.TargetType == parser.TargetFact {
 			factTypes[p.Target.Name] = p.Target.ValueType
 		} else {
-			metricTypes[p.Target.Name] = p.Target.ValueType
+			metricTypes[p.Target.Name] = falba.MetricType{
+				Type: p.Target.ValueType,
+				Unit: p.Target.Unit,
+			}
 		}
 		allTypes[p.Target.Name] = p.Target.ValueType
 	}

@@ -298,14 +298,14 @@ func GroupByFact(sqlDB *sql.DB, falbaDB *db.DB, experimentFact string, metric st
 	if !ok {
 		return nil, fmt.Errorf("no metric %q (have: %v)", metric, slices.Collect(maps.Keys(falbaDB.MetricTypes)))
 	}
-	if metricType != falba.ValueInt && metricType != falba.ValueFloat {
+	if metricType.Type != falba.ValueInt && metricType.Type != falba.ValueFloat {
 		return nil, fmt.Errorf("sorry, only implemented for float and int metrics (%v is %v)",
 			metric, metricType)
 	}
 	t := groupByTemplateArgs{
 		Fact:         experimentFact,
 		Metric:       metric,
-		MetricColumn: metricType.MetricsColumn(),
+		MetricColumn: metricType.Type.MetricsColumn(),
 	}
 	query, err := t.Execute()
 	if err != nil {

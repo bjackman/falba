@@ -74,7 +74,13 @@ func cmdCmp(cmd *cobra.Command, args []string) error {
 		log.Printf("WARNING: Enountered %d tests (%v), this is probably wrong.", len(allTests), allTests)
 	}
 
-	fmt.Printf("metric: %v   |  test: %v\n", cmpFlagMetric, allTests[0])
+	metricType := falbaDB.MetricTypes[cmpFlagMetric]
+	metricString := cmpFlagMetric
+	if metricType.Unit != nil {
+		metricString = fmt.Sprintf("%s (%s)", cmpFlagMetric, metricType.Unit.ShortName)
+	}
+
+	fmt.Printf("metric: %v   |  test: %v\n", metricString, allTests[0])
 	t := table.NewWriter()
 	t.SetOutputMirror(os.Stdout)
 	t.AppendHeader(table.Row{cmpFlagFact, "samples", "mean", "min", "histogram", "max"})

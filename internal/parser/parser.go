@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/bjackman/falba/internal/falba"
+	"github.com/bjackman/falba/internal/unit"
 )
 
 // ParseResult is just  halper to avoid typing out verbose map and slice biz.
@@ -49,12 +50,13 @@ type ParserTarget struct {
 	Name       string
 	TargetType TargetType
 	ValueType  falba.ValueType
+	Unit       *unit.Unit
 }
 
 func (t *ParserTarget) result(val falba.Value) *ParseResult {
 	r := emptyParseResult()
 	if t.TargetType == TargetMetric {
-		r.Metrics = append(r.Metrics, &falba.Metric{Name: t.Name, Value: val})
+		r.Metrics = append(r.Metrics, &falba.Metric{Name: t.Name, Value: val, Unit: t.Unit})
 	} else {
 		r.Facts[t.Name] = val
 	}
@@ -164,6 +166,7 @@ type BaseParserConfig struct {
 	Metric *struct {
 		Name string `json:"name"`
 		Type string `json:"type"`
+		Unit string `json:"unit"`
 	} `json:"metric"`
 	Fact *struct {
 		Name string `json:"name"`
@@ -237,10 +240,15 @@ func FromConfig(rawConfig json.RawMessage, name string) (*Parser, error) {
 		if err != nil {
 			return nil, fmt.Errorf("parsing metric type: %v", err)
 		}
+		u, err := unit.Parse(baseConfig.Metric.Unit)
+		if err != nil {
+			return nil, fmt.Errorf("parsing unit: %v", err)
+		}
 		target = ParserTarget{
 			TargetType: TargetMetric,
 			Name:       baseConfig.Metric.Name,
 			ValueType:  valueType,
+			Unit:       u,
 		}
 	} else if baseConfig.Fact != nil {
 		if falba.IsReservedFactName(baseConfig.Fact.Name) {

@@ -398,12 +398,12 @@ func TestInsertIntoDuckDB(t *testing.T) {
 			"fact_bool_true":  falba.ValueBool,
 			"fact_bool_false": falba.ValueBool,
 		},
-		MetricTypes: map[string]falba.ValueType{
-			"metric1":           falba.ValueFloat,
-			"metric2":           falba.ValueString,
-			"metric3":           falba.ValueInt,
-			"metric_bool_false": falba.ValueBool,
-			"metric_bool_true":  falba.ValueBool,
+		MetricTypes: map[string]falba.MetricType{
+			"metric1":           {Type: falba.ValueFloat},
+			"metric2":           {Type: falba.ValueString},
+			"metric3":           {Type: falba.ValueInt},
+			"metric_bool_false": {Type: falba.ValueBool},
+			"metric_bool_true":  {Type: falba.ValueBool},
 		},
 	}
 

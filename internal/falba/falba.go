@@ -10,6 +10,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/bjackman/falba/internal/unit"
 )
 
 var (
@@ -71,6 +73,15 @@ func (r *Result) ForMetricsTable() []map[string]any {
 		obj := map[string]any{
 			"result_id": r.ResultID,
 			"metric":    metric.Name,
+		}
+		if metric.Unit != nil {
+			obj["unit_name"] = metric.Unit.Name
+			obj["unit_short_name"] = metric.Unit.ShortName
+			obj["unit_family"] = metric.Unit.Family
+		} else {
+			obj["unit_name"] = ""
+			obj["unit_short_name"] = ""
+			obj["unit_family"] = ""
 		}
 		obj[metric.Value.Type().MetricsColumn()] = ValueValue(metric.Value)
 		ret = append(ret, obj)
@@ -313,5 +324,12 @@ func ParseValue(s string, t ValueType) (Value, error) {
 // representing the unknown that the experiment was intended to measure.
 type Metric struct {
 	Name string
+	Unit *unit.Unit
 	Value
+}
+
+// MetricType describes the type of a metric, including its value type and unit.
+type MetricType struct {
+	Type ValueType
+	Unit *unit.Unit
 }
