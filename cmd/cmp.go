@@ -18,9 +18,10 @@ import (
 )
 
 var (
-	cmpFlagMetric string
-	cmpFlagFact   string
-	cmpFlagFilter string
+	cmpFlagMetric    string
+	cmpFlagFact      string
+	cmpFlagFilter    string
+	cmpFlagHistWidth int
 )
 
 var printer *message.Printer = message.NewPrinter(language.English)
@@ -125,7 +126,7 @@ func cmdCmp(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("no fact %q (have: %v)", cmpFlagFact, slices.Collect(maps.Keys(falbaDB.FactTypes)))
 	}
 
-	groups, err := anal.GroupByFact(sqlDB, falbaDB, cmpFlagFact, cmpFlagMetric, cmpFlagFilter)
+	groups, err := anal.GroupByFact(sqlDB, falbaDB, cmpFlagFact, cmpFlagMetric, cmpFlagFilter, cmpFlagHistWidth)
 	if err != nil {
 		return fmt.Errorf("grouping by fact: %v", err)
 	}
@@ -154,7 +155,7 @@ func cmdCmp(cmd *cobra.Command, args []string) error {
 	fmt.Printf("metric: %v   |  test: %v\n", metricString, allTests[0])
 	t := table.NewWriter()
 	t.SetOutputMirror(os.Stdout)
-	a.AppendHeader(table.Row{cmpFlagFact, "samples", "mean", "min", "histogram", "max", "Δμ"})
+	t.AppendHeader(table.Row{cmpFlagFact, "samples", "mean", "min", "histogram", "max", "Δμ"})
 
 	// Sort group keys so we have a consistent baseline.
 	groupKeys := slices.Collect(maps.Keys(groups))
@@ -218,4 +219,5 @@ func init() {
 	cmpCmd.Flags().StringVarP(&cmpFlagFact, "fact", "f", "", "Fact to group by")
 	cmpCmd.MarkFlagRequired("fact")
 	cmpCmd.Flags().StringVarP(&cmpFlagFilter, "filter", "w", "TRUE", "Filter for results. SQL boolean expression.")
+	cmpCmd.Flags().IntVar(&cmpFlagHistWidth, "hist-width", 20, "Width of the histogram in characters")
 }

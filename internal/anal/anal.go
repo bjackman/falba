@@ -159,7 +159,7 @@ var groupByTemplate = template.Must(template.New("group-by").Parse(`
 		histogram(
 			metric,
 			equi_width_bins(0, (SELECT MAX(metric) FROM Results),
-			50,
+			{{.HistWidth}},
 			nice := true)
 		) AS hist,
 		MIN(metric) AS min_val,
@@ -172,6 +172,7 @@ type groupByTemplateArgs struct {
 	Fact         string
 	Metric       string
 	MetricColumn string
+	HistWidth    int
 }
 
 func (g *groupByTemplateArgs) Execute() (string, error) {
@@ -285,7 +286,7 @@ type MetricGroup struct {
 // the map key should probably be a falba.Value but for now it seems like just
 // squashing it into a string is harmless enough. The filterExpression is
 // applied across the whole database before any analysis.
-func GroupByFact(sqlDB *sql.DB, falbaDB *db.DB, experimentFact string, metric string, filterExpression string) (map[string]*MetricGroup, error) {
+func GroupByFact(sqlDB *sql.DB, falbaDB *db.DB, experimentFact string, metric string, filterExpression string, histWidth int) (map[string]*MetricGroup, error) {
 	if err := createFilteredResults(sqlDB, filterExpression); err != nil {
 		return nil, fmt.Errorf("filtering results: %w", err)
 	}
@@ -306,6 +307,7 @@ func GroupByFact(sqlDB *sql.DB, falbaDB *db.DB, experimentFact string, metric st
 		Fact:         experimentFact,
 		Metric:       metric,
 		MetricColumn: metricType.Type.MetricsColumn(),
+		HistWidth:    histWidth,
 	}
 	query, err := t.Execute()
 	if err != nil {
