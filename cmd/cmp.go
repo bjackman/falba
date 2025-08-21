@@ -193,7 +193,7 @@ func cmdCmp(cmd *cobra.Command, args []string) error {
 	}
 	t.SetStyle(table.Style{
 		Name: "mystyle",
-		Box:  table.StyleBoxLight,
+		Box:  table.StyleBoxDefault,
 		// Needs to be set explicitly for some reason, otherwise the table
 		// boxes don't show up.
 		Options: table.OptionsDefault,
