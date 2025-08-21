@@ -155,7 +155,13 @@ func cmdCmp(cmd *cobra.Command, args []string) error {
 	fmt.Printf("metric: %v   |  test: %v\n", metricString, allTests[0])
 	t := table.NewWriter()
 	t.SetOutputMirror(os.Stdout)
-	t.AppendHeader(table.Row{cmpFlagFact, "samples", "mean", "min", "histogram", "max", "Δμ"})
+
+	header := table.Row{cmpFlagFact, "samples", "mean", "min"}
+	if cmpFlagHistWidth > 0 {
+		header = append(header, "histogram")
+	}
+	header = append(header, "max", "Δμ")
+	t.AppendHeader(header)
 
 	// Sort group keys so we have a consistent baseline.
 	groupKeys := slices.Collect(maps.Keys(groups))
@@ -172,15 +178,18 @@ func cmdCmp(cmd *cobra.Command, args []string) error {
 		if group.Mean != baselineMean {
 			delta = (group.Mean - baselineMean) / baselineMean
 		}
-		t.AppendRow(table.Row{
+
+		row := table.Row{
 			factVal,
 			group.Histogram.TotalSize,
 			group.Mean,
 			group.Min,
-			group.Histogram.PlotUnicode(),
-			group.Max,
-			delta,
-		})
+		}
+		if cmpFlagHistWidth > 0 {
+			row = append(row, group.Histogram.PlotUnicode())
+		}
+		row = append(row, group.Max, delta)
+		t.AppendRow(row)
 	}
 	t.SetStyle(table.Style{
 		Name: "mystyle",
@@ -219,5 +228,5 @@ func init() {
 	cmpCmd.Flags().StringVarP(&cmpFlagFact, "fact", "f", "", "Fact to group by")
 	cmpCmd.MarkFlagRequired("fact")
 	cmpCmd.Flags().StringVarP(&cmpFlagFilter, "filter", "w", "TRUE", "Filter for results. SQL boolean expression.")
-	cmpCmd.Flags().IntVar(&cmpFlagHistWidth, "hist-width", 20, "Width of the histogram in characters")
+	cmpCmd.Flags().IntVar(&cmpFlagHistWidth, "hist-width", 20, "Width of the histogram in characters. Set 0 to disable histogram.")
 }

@@ -156,12 +156,16 @@ var groupByTemplate = template.Must(template.New("group-by").Parse(`
 		ANY_VALUE(test_name),
 		{{.Fact}},
 		AVG(CAST(metric AS FLOAT)) AS mean,
+		{{if .HistWidth -}}
 		histogram(
 			metric,
 			equi_width_bins(0, (SELECT MAX(metric) FROM Results),
 			{{.HistWidth}},
 			nice := true)
-		) AS hist,
+		)
+		{{- else -}}
+		NULL
+		{{- end}} AS hist,
 		MIN(metric) AS min_val,
 		MAX(metric) AS max_val
 	FROM Results
@@ -198,6 +202,9 @@ type Histogram struct {
 // Annoying boilerplate to read the duckdb.Map that gets returned when we call
 // histogram() in SQL.
 func (h *Histogram) Scan(v any) error {
+	if v == nil {
+		return nil
+	}
 	dm, ok := v.(duckdb.Map)
 	if !ok {
 		return fmt.Errorf("invalid type %T for scanning Histogram, expected duckdb.Map", v)
