@@ -33,3 +33,54 @@ A **Metric** is an output measured during the test. Metrics represent the perfor
 -   Parsers are defined in a configuration file (`parsers.json`).
 -   They define logic to extract specific values from Artifacts based on patterns (e.g., regular expressions, JSON paths).
 -   When a Result is read, the configured Parsers run over its Artifacts to populate its Facts and Metrics.
+
+## Usage
+
+### Creating a Database
+A Falba database is simply a directory on your filesystem. You can start with an empty directory.
+
+### Configuring Parsers
+To tell Falba how to interpret your artifacts, create a `parsers.json` file in the root of your database directory. This file defines which files to look at and what data to extract.
+
+Example `parsers.json`:
+
+```json
+{
+    "parsers": {
+        "git_revision": {
+            "type": "jsonpath",
+            "artifact_regexp": "version.json",
+            "jsonpath": "$.git_sha",
+            "fact": {
+                "name": "git_revision",
+                "type": "string"
+            }
+        },
+        "requests_per_second": {
+            "type": "single_metric",
+            "artifact_regexp": "rps.txt",
+            "metric": {
+                "name": "rps",
+                "type": "float",
+                "unit": "req/s"
+            }
+        }
+    }
+}
+```
+
+This configuration tells Falba to:
+1.  Look for a file named `version.json` and extract the `git_sha` field using JSONPath, storing it as a `string` fact named `git_revision`.
+2.  Look for a file named `rps.txt` and take its entire content as a `float` metric named `rps`.
+
+### Importing Data
+To add results to your database, use the `falba import` command. You need to specify a **test name** and the **paths to your artifacts**.
+
+```bash
+falba import --test-name "my-benchmark" ./results/run-1/
+```
+
+This command will:
+1.  Read the artifacts from `./results/run-1/`.
+2.  Calculate a **Result ID** based on the content of these artifacts.
+3.  Store the artifacts in the database under `$DB_ROOT/my-benchmark:$RESULT_ID/artifacts/`.
