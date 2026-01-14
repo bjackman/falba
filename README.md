@@ -19,20 +19,24 @@ An **Artifact** is a raw file produced by a test execution. Artifacts are stored
 ### Fact
 A **Fact** is a piece of information *about* a Result. Facts typically represent the inputs or environmental conditions of the test (e.g., "git_commit", "instance_type", "concurrency_level").
 -   Facts are extracted from Artifacts.
--   Each Result has a set of unique Facts.
+-   Each Result has a set of unique Facts; a Fact can only have a single value per Result.
 -   Facts are typed values (int, float, string, bool).
 
 ### Metric
 A **Metric** is an output measured during the test. Metrics represent the performance or behavior of the system under test (e.g., "requests_per_second", "latency_p99").
 -   Metrics are extracted from Artifacts.
--   A Result can have multiple Metrics.
+-   A Result can have multiple Metrics, and a specific Metric can have multiple samples (values) within the same Result.
 -   Metrics have a name, a typed value, and an optional unit (e.g., "ns", "B").
 
 ### Parsers
 **Parsers** are the bridge between raw **Artifacts** and structured **Facts** and **Metrics**.
 -   Parsers are defined in a configuration file (`parsers.json`).
 -   They define logic to extract specific values from Artifacts based on patterns (e.g., regular expressions, JSON paths).
--   When a Result is read, the configured Parsers run over its Artifacts to populate its Facts and Metrics.
+-   **Single Artifact Scope**: A Parser extracts information from one artifact at a time. It cannot combine data from multiple artifacts to produce a single Fact or Metric.
+-   **Multiple Matches**:
+    -   If a Parser targeting a **Fact** matches multiple artifacts, it is an error if more than one match produces the fact (as Facts must be unique per Result).
+    -   If a Parser targeting a **Metric** matches multiple artifacts, each match produces a separate sample for that Metric.
+    -   When a Result is read, the configured Parsers run over its Artifacts to populate its Facts and Metrics.
 
 ## Usage
 
