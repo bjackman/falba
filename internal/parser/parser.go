@@ -189,6 +189,21 @@ func (c *ShellvarParserConfig) ValidateFields() error {
 	return nil
 }
 
+type ShellCommandParserConfig struct {
+	BaseParserConfig
+	Command string `json:"command"` // Shell command to execute
+}
+
+func (c *ShellCommandParserConfig) ValidateFields() error {
+	if err := c.BaseParserConfig.ValidateFields(); err != nil {
+		return err
+	}
+	if c.Command == "" {
+		return fmt.Errorf("missing/empty 'command' field for shell command parser")
+	}
+	return nil
+}
+
 // This just checks if the config structure has the right fields, it doesn't
 // check if their content is correct.
 func (c *BaseParserConfig) ValidateFields() error {
@@ -314,6 +329,21 @@ func FromConfig(rawConfig json.RawMessage, name string) (*Parser, error) {
 		extractor, err = NewShellvarExtractor(config.Var, target.ValueType)
 		if err != nil {
 			return nil, fmt.Errorf("setting up Shellvar extractor: %v", err)
+		}
+	case "shell":
+		decoder := json.NewDecoder(strings.NewReader(string(rawConfig)))
+		decoder.DisallowUnknownFields()
+		var config ShellCommandParserConfig
+		if err := decoder.Decode(&config); err != nil {
+			return nil, fmt.Errorf("decoding shell command parser config: %v", err)
+		}
+		if err := config.ValidateFields(); err != nil {
+			return nil, fmt.Errorf("invalid %q parser config: %v", baseConfig.Type, err)
+		}
+		var err error
+		extractor, err = NewShellCommandExtractor(config.Command, target.ValueType)
+		if err != nil {
+			return nil, fmt.Errorf("setting up ShellCommand extractor: %v", err)
 		}
 	case "artifact_presence":
 		decoder := json.NewDecoder(strings.NewReader(string(rawConfig)))
