@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestShellCommandExtractor(t *testing.T) {
+func TestCommandExtractor(t *testing.T) {
 	tmpDir := t.TempDir()
 	artifactPath := filepath.Join(tmpDir, "test.txt")
 	err := os.WriteFile(artifactPath, []byte("hello world\n"), 0644)
@@ -23,7 +23,7 @@ func TestShellCommandExtractor(t *testing.T) {
 	}
 
 	t.Run("simple echo", func(t *testing.T) {
-		e, err := NewShellCommandExtractor("echo 123", falba.ValueInt)
+		e, err := NewCommandExtractor([]string{"echo", "123"}, falba.ValueInt)
 		require.NoError(t, err)
 
 		val, err := e.Extract(artifact)
@@ -33,7 +33,7 @@ func TestShellCommandExtractor(t *testing.T) {
 
 	t.Run("piped input", func(t *testing.T) {
 		// Use wc -c to count bytes of input "hello world\n" -> 12
-		e, err := NewShellCommandExtractor("wc -c", falba.ValueInt)
+		e, err := NewCommandExtractor([]string{"wc", "-c"}, falba.ValueInt)
 		require.NoError(t, err)
 
 		val, err := e.Extract(artifact)
@@ -43,7 +43,7 @@ func TestShellCommandExtractor(t *testing.T) {
 	})
 
 	t.Run("parse failure", func(t *testing.T) {
-		e, err := NewShellCommandExtractor("echo notanumber", falba.ValueInt)
+		e, err := NewCommandExtractor([]string{"echo", "notanumber"}, falba.ValueInt)
 		require.NoError(t, err)
 
 		_, err = e.Extract(artifact)
@@ -52,7 +52,7 @@ func TestShellCommandExtractor(t *testing.T) {
 	})
 
 	t.Run("command failure", func(t *testing.T) {
-		e, err := NewShellCommandExtractor("exit 1", falba.ValueInt)
+		e, err := NewCommandExtractor([]string{"sh", "-c", "exit 1"}, falba.ValueInt)
 		require.NoError(t, err)
 
 		_, err = e.Extract(artifact)
@@ -61,12 +61,12 @@ func TestShellCommandExtractor(t *testing.T) {
 	})
 }
 
-func TestShellCommandParserConfig(t *testing.T) {
+func TestCommandParserConfig(t *testing.T) {
 	// Test full parser configuration
 	configJSON := `{
-		"type": "shell",
+		"type": "command",
 		"artifact_regexp": "test.txt",
-		"command": "cat | wc -c",
+		"args": ["sh", "-c", "cat | wc -c"],
 		"metric": {
 			"name": "byte_count",
 			"type": "int",
