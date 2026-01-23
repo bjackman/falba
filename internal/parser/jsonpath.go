@@ -20,7 +20,7 @@ func NewJSONPathExtractor(expr string, resultType falba.ValueType) (*JSONPathExt
 	}, nil
 }
 
-func (e *JSONPathExtractor) Extract(artifact *falba.Artifact) (falba.Value, error) {
+func (e *JSONPathExtractor) Extract(artifact *falba.Artifact) ([]falba.Value, error) {
 	content, err := artifact.Content()
 	if err != nil {
 		return nil, fmt.Errorf("getting artifact content: %v", err)
@@ -42,54 +42,53 @@ func (e *JSONPathExtractor) Extract(artifact *falba.Artifact) (falba.Value, erro
 		return nil, fmt.Errorf("failed to evaluate JSONPath: %v", err)
 	}
 
-	var gotVal any
+	var rawValues []any
 	switch got := got.(type) {
 	case []any:
-		// JSONPath seems to be weird and annoying when you use its
-		// filtering functionality, AFAICS it doesn't have a built-in
-		// facility to extract an individual value. So we just allow it to
-		// return a slice of length 1.
-		if len(got) != 1 {
-			return nil, fmt.Errorf("%w: JSONPath returned %d values, expected 1", ErrParseFailure, len(got))
-		}
-		gotVal = got[0]
+		rawValues = got
 	default:
-		gotVal = got
+		rawValues = []any{got}
 	}
 
-	switch e.resultType {
-	case falba.ValueInt:
-		// JSON doesn't have proper numeric types so we can't actually enforce
-		// that the value is an integer. Just squash it into one.
-		switch v := gotVal.(type) {
-		case float64:
-			return &falba.IntValue{Value: int64(v)}, nil
-		case int:
-			return &falba.IntValue{Value: int64(v)}, nil
+	var result []falba.Value
+	for _, rawVal := range rawValues {
+		var val falba.Value
+		switch e.resultType {
+		case falba.ValueInt:
+			// JSON doesn't have proper numeric types so we can't actually enforce
+			// that the value is an integer. Just squash it into one.
+			switch v := rawVal.(type) {
+			case float64:
+				val = &falba.IntValue{Value: int64(v)}
+			case int:
+				val = &falba.IntValue{Value: int64(v)}
+			default:
+				return nil, fmt.Errorf("%w: JSONPath returned %T, wanted numeric", ErrParseFailure, rawVal)
+			}
+		case falba.ValueString:
+			v, ok := rawVal.(string)
+			if !ok {
+				return nil, fmt.Errorf("%w: JSONPath returned %T, wanted string", ErrParseFailure, rawVal)
+			}
+			val = &falba.StringValue{Value: v}
+		case falba.ValueFloat:
+			v, ok := rawVal.(float64)
+			if !ok {
+				return nil, fmt.Errorf("%w: JSONPath returned %T, wanted float64", ErrParseFailure, rawVal)
+			}
+			val = &falba.FloatValue{Value: v}
+		case falba.ValueBool:
+			v, ok := rawVal.(bool)
+			if !ok {
+				return nil, fmt.Errorf("%w: JSONPath returned %T, wanted bool", ErrParseFailure, rawVal)
+			}
+			val = &falba.BoolValue{Value: v}
 		default:
-			return nil, fmt.Errorf("%w: JSONPath returned %T, wanted numeric", ErrParseFailure, gotVal)
+			panic("unimplemented")
 		}
-	case falba.ValueString:
-		val, ok := gotVal.(string)
-		if !ok {
-			return nil, fmt.Errorf("%w: JSONPath returned %T, wanted string", ErrParseFailure, gotVal)
-		}
-		return &falba.StringValue{Value: val}, nil
-	case falba.ValueFloat:
-		val, ok := gotVal.(float64)
-		if !ok {
-			return nil, fmt.Errorf("%w: JSONPath returned %T, wanted float64", ErrParseFailure, gotVal)
-		}
-		return &falba.FloatValue{Value: val}, nil
-	case falba.ValueBool:
-		val, ok := gotVal.(bool)
-		if !ok {
-			return nil, fmt.Errorf("%w: JSONPath returned %T, wanted bool", ErrParseFailure, gotVal)
-		}
-		return &falba.BoolValue{Value: val}, nil
-	default:
-		panic("unimplemented")
+		result = append(result, val)
 	}
+	return result, nil
 }
 
 func (p *JSONPathExtractor) String() string {

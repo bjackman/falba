@@ -29,12 +29,15 @@ func TestCommandExtractor(t *testing.T) {
 			t.Fatalf("NewCommandExtractor failed: %v", err)
 		}
 
-		val, err := e.Extract(artifact)
+		vals, err := e.Extract(artifact)
 		if err != nil {
 			t.Fatalf("Extract failed: %v", err)
 		}
-		if val.IntValue() != 123 {
-			t.Errorf("got %d, want 123", val.IntValue())
+		if len(vals) != 1 {
+			t.Fatalf("got %d values, want 1", len(vals))
+		}
+		if vals[0].IntValue() != 123 {
+			t.Errorf("got %d, want 123", vals[0].IntValue())
 		}
 	})
 
@@ -45,13 +48,16 @@ func TestCommandExtractor(t *testing.T) {
 			t.Fatalf("NewCommandExtractor failed: %v", err)
 		}
 
-		val, err := e.Extract(artifact)
+		vals, err := e.Extract(artifact)
 		if err != nil {
 			t.Fatalf("Extract failed: %v", err)
 		}
+		if len(vals) != 1 {
+			t.Fatalf("got %d values, want 1", len(vals))
+		}
 		// "hello world\n" is 12 bytes
-		if val.IntValue() != 12 {
-			t.Errorf("got %d, want 12", val.IntValue())
+		if vals[0].IntValue() != 12 {
+			t.Errorf("got %d, want 12", vals[0].IntValue())
 		}
 	})
 

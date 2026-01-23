@@ -296,18 +296,6 @@ OTHER_VAR=foo
 			parser:  mustNewShellvarParser(t, "MY_VAR", "my_fact", falba.ValueString),
 			want:    &falba.StringValue{Value: `'value\\'`}, // strconv.Unquote fails, returns raw
 		},
-		{
-			desc:    "variable not found",
-			content: "OTHER_VAR=foo",
-			parser:  mustNewShellvarParser(t, "MY_VAR", "my_fact", falba.ValueString),
-			want:    nil,
-		},
-		{
-			desc:    "empty file - var not found",
-			content: "",
-			parser:  mustNewShellvarParser(t, "MY_VAR", "my_fact", falba.ValueString),
-			want:    nil,
-		},
 	}
 
 	for _, tc := range testCases {
@@ -393,6 +381,16 @@ func TestShellvarParser_Error(t *testing.T) {
 		content string
 		parser  *parser.Parser
 	}{
+		{
+			desc:    "variable not found",
+			content: "OTHER_VAR=foo",
+			parser:  mustNewShellvarParser(t, "MY_VAR", "my_fact", falba.ValueString),
+		},
+		{
+			desc:    "empty file - var not found",
+			content: "",
+			parser:  mustNewShellvarParser(t, "MY_VAR", "my_fact", falba.ValueString),
+		},
 		{
 			desc:    "malformed line (no equals) - var not found",
 			content: "MY_VAR value", // Line is skipped, MY_VAR not found by that name.
@@ -670,11 +668,6 @@ func TestJSONPathParser(t *testing.T) {
 			content: `{"val": 1}`, // JSONPath returns float64 for numbers
 			parser:  mustNewJSONPathParser(t, "$.val", "my_fact", parser.TargetFact, falba.ValueBool),
 		},
-		{
-			desc:    "JSONPath returns multiple values",
-			content: `{"items": [1, 2, 3]}`,
-			parser:  mustNewJSONPathParser(t, "$.items[*]", "my_metric", parser.TargetMetric, falba.ValueInt),
-		},
 	}
 
 	for _, tc := range errorTestCases {
@@ -692,6 +685,34 @@ func TestJSONPathParser(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Multiple values", func(t *testing.T) {
+		content := `{"items": [1, 2, 3]}`
+		p := mustNewJSONPathParser(t, "$.items[*]", "my_metric", parser.TargetMetric, falba.ValueInt)
+		artifact := fakeArtifact(t, content)
+
+		result, err := p.Parse(artifact)
+		if err != nil {
+			t.Fatalf("Parse() failed: %v", err)
+		}
+
+		if len(result.Facts) != 0 {
+			t.Errorf("Expected 0 facts, got %d", len(result.Facts))
+		}
+		if len(result.Metrics) != 3 {
+			t.Fatalf("Expected 3 metrics, got %d", len(result.Metrics))
+		}
+
+		wants := []int64{1, 2, 3}
+		for i, want := range wants {
+			if result.Metrics[i].Value.IntValue() != want {
+				t.Errorf("Metric %d: got %d, want %d", i, result.Metrics[i].Value.IntValue(), want)
+			}
+			if result.Metrics[i].Name != "my_metric" {
+				t.Errorf("Metric %d: got name %q, want 'my_metric'", i, result.Metrics[i].Name)
+			}
+		}
+	})
 
 	t.Run("FromConfig jsonpath", func(t *testing.T) {
 		configJSON := `{

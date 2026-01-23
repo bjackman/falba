@@ -14,8 +14,8 @@ type ArtifactPresenceExtractor struct {
 	result falba.Value
 }
 
-func (e *ArtifactPresenceExtractor) Extract(artifact *falba.Artifact) (falba.Value, error) {
-	return e.result, nil
+func (e *ArtifactPresenceExtractor) Extract(artifact *falba.Artifact) ([]falba.Value, error) {
+	return []falba.Value{e.result}, nil
 }
 
 func (e *ArtifactPresenceExtractor) String() string {

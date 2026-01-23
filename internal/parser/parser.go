@@ -35,7 +35,7 @@ type Extractor interface {
 	// Parse processes a single Artifact and produces results. If the error
 	// returned Is a ErrParseFailure it just means something is unexpected about
 	// the Artifact contents, otherwise it means something went completely wrong.
-	Extract(artifact *falba.Artifact) (falba.Value, error)
+	Extract(artifact *falba.Artifact) ([]falba.Value, error)
 }
 
 type TargetType int
@@ -51,16 +51,6 @@ type ParserTarget struct {
 	TargetType TargetType
 	ValueType  falba.ValueType
 	Unit       *unit.Unit
-}
-
-func (t *ParserTarget) result(val falba.Value) *ParseResult {
-	r := emptyParseResult()
-	if t.TargetType == TargetMetric {
-		r.Metrics = append(r.Metrics, &falba.Metric{Name: t.Name, Value: val, Unit: t.Unit})
-	} else {
-		r.Facts[t.Name] = val
-	}
-	return r
 }
 
 // A Parser is a bundle of logic for extracting information from Artifacts.
@@ -87,11 +77,6 @@ func NewParser(name string, artifactPattern string, target *ParserTarget, extrac
 }
 
 // Parse extract facts and metrics from an artifact.
-// TODO: This only supports each parser producing a single metric/fact. I'm
-// starting to think this is actually a nice simplification. It's less flexible,
-// but isn't the whole point of this design that, if you think you wanna gather
-// zillions of facts, you are probably wrong? You only need to extract the ones
-// you're actually capable of analysing.
 //
 // Ahhh right, clarity: Yes, we want the flexibility to output _multiple samples
 // of the same metric_. We don't really care about producing multiple different
@@ -100,12 +85,28 @@ func (p *Parser) Parse(artifact *falba.Artifact) (*ParseResult, error) {
 	if !p.ArtifactRE.MatchString(artifact.Name) {
 		return emptyParseResult(), nil
 	}
-	val, err := p.Extractor.Extract(artifact)
+	vals, err := p.Extractor.Extract(artifact)
 	if err != nil {
 		return nil, err
 	}
+	// TODO: This interface is a bit wack. Probably wanna refactor it to just
+	// force facts parsers to return exactly one value in the type system.
+	if len(vals) == 0 {
+		return nil, fmt.Errorf("parser %q produced no values (should hve been ErrParseFailure)", p.Name)
+	}
 	// TODO: Is it OK that we are kinda forgetting the expected type here?
-	return p.Target.result(val), nil
+	r := emptyParseResult()
+	if p.Target.TargetType == TargetMetric {
+		for _, val := range vals {
+			r.Metrics = append(r.Metrics, &falba.Metric{Name: p.Target.Name, Value: val, Unit: p.Target.Unit})
+		}
+	} else {
+		if len(vals) != 1 {
+			return nil, fmt.Errorf("fact parser %q produced multiple values. This is only allowed for metric parsers", p.Name)
+		}
+		r.Facts[p.Target.Name] = vals[0]
+	}
+	return r, nil
 }
 
 // RegexpExtractor is an extractor that uses regexps provided by the user to
@@ -130,7 +131,7 @@ func NewRegexpExtractor(pattern string, resultType falba.ValueType) (*RegexpExtr
 	return &RegexpExtractor{re: re, resultType: resultType}, nil
 }
 
-func (e *RegexpExtractor) Extract(artifact *falba.Artifact) (falba.Value, error) {
+func (e *RegexpExtractor) Extract(artifact *falba.Artifact) ([]falba.Value, error) {
 	content, err := artifact.Content()
 	if err != nil {
 		return nil, fmt.Errorf("getting artifact content: %v", err)
@@ -140,6 +141,7 @@ func (e *RegexpExtractor) Extract(artifact *falba.Artifact) (falba.Value, error)
 	if len(matches) == 0 {
 		return nil, fmt.Errorf("%w: no matches for %v in %v", ErrParseFailure, e.re, artifact)
 	}
+	// TODO: Support multiple matches
 	if len(matches) > 1 {
 		return nil, fmt.Errorf("%w: multple matches for %v in %v, only one is allowed", ErrParseFailure, e.re, artifact)
 	}
@@ -150,7 +152,7 @@ func (e *RegexpExtractor) Extract(artifact *falba.Artifact) (falba.Value, error)
 		return nil, fmt.Errorf("%w: %v", ErrParseFailure, err)
 	}
 
-	return val, nil
+	return []falba.Value{val}, nil
 }
 
 func (p *RegexpExtractor) String() string {

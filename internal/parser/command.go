@@ -26,7 +26,7 @@ func NewCommandExtractor(args []string, resultType falba.ValueType) (*CommandExt
 	}, nil
 }
 
-func (e *CommandExtractor) Extract(artifact *falba.Artifact) (falba.Value, error) {
+func (e *CommandExtractor) Extract(artifact *falba.Artifact) ([]falba.Value, error) {
 	content, err := artifact.Content()
 	if err != nil {
 		return nil, fmt.Errorf("getting artifact content: %v", err)
@@ -49,7 +49,7 @@ func (e *CommandExtractor) Extract(artifact *falba.Artifact) (falba.Value, error
 		return nil, fmt.Errorf("%w: parsing output %q: %v", ErrParseFailure, strVal, err)
 	}
 
-	return val, nil
+	return []falba.Value{val}, nil
 }
 
 func (e *CommandExtractor) String() string {

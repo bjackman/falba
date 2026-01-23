@@ -29,7 +29,7 @@ func NewShellvarExtractor(varName string, resultType falba.ValueType) (*Shellvar
 	}, nil
 }
 
-func (e *ShellvarExtractor) Extract(artifact *falba.Artifact) (falba.Value, error) {
+func (e *ShellvarExtractor) Extract(artifact *falba.Artifact) ([]falba.Value, error) {
 	content, err := artifact.Content()
 	if err != nil {
 		return nil, fmt.Errorf("getting artifact content: %v", err)
@@ -64,14 +64,14 @@ func (e *ShellvarExtractor) Extract(artifact *falba.Artifact) (falba.Value, erro
 		if err != nil {
 			return nil, fmt.Errorf("%w: %v", ErrParseFailure, err)
 		}
-		return parsedVal, nil
+		return []falba.Value{parsedVal}, nil
 	}
 
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("scanning lines: %v", err)
 	}
 
-	return nil, nil
+	return nil, fmt.Errorf("%w: variable %q not found", ErrParseFailure, e.VarName)
 }
 
 func (e *ShellvarExtractor) parseValue(rawValue string) (string, error) {

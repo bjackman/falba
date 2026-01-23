@@ -32,10 +32,15 @@ A **Metric** is an output measured during the test. Unlike Facts, a Metric can h
 **Parsers** are the bridge between raw **Artifacts** and structured **Facts** and **Metrics**.
 -   Parsers are defined in a configuration file (`parsers.json`).
 -   They define logic to extract specific values from Artifacts based on patterns (e.g., regular expressions, JSON paths).
--   **Single Artifact Scope**: A Parser extracts information from one artifact at a time. It cannot combine data from multiple artifacts to produce a single Fact or Metric.
--   **Multiple Matches**:
+-   **Single artifact scope**: A Parser extracts information from one artifact at a time. It cannot combine data from multiple artifacts to produce a single Fact or Metric.
+-   **Multiple values per Artifact**:
+    -   A single Parser can produce multiple values from a single Artifact. This is particularly useful for **Metrics**, where a single file might contain many samples (e.g., a JSON array of latencies).
+    -   If a Parser targets a **Fact**, it must produce exactly one value.
+    -   But, note that support for this actually depends on the individual
+        parser types (which aren't documented yet).
+-   **Matching multiple Artifacts**:
     -   If a Parser targeting a **Fact** matches multiple artifacts, it is an error if more than one match produces the fact (as Facts must be unique per Result).
-    -   If a Parser targeting a **Metric** matches multiple artifacts, each match produces a separate sample for that Metric.
+    -   If a Parser targeting a **Metric** matches multiple artifacts, all samples produced by all matches are collected.
     -   When a Result is read, the configured Parsers run over its Artifacts to populate its Facts and Metrics.
 
 ## Usage
