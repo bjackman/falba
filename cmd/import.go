@@ -43,11 +43,15 @@ func importCmdRunE(cmd *cobra.Command, args []string) error {
 					return err
 				}
 				if !d.IsDir() {
-					relPath, err := filepath.Rel(inputPath, path)
+					parentDir := filepath.Dir(filepath.Clean(inputPath))
+					relPath, err := filepath.Rel(parentDir, path)
 					if err != nil {
 						return fmt.Errorf("failed to get relative path for %s: %w", path, err)
 					}
-					artifactsToProcess = append(artifactsToProcess, artifactEntry{currentPath: path, relativePath: relPath})
+					artifactsToProcess = append(artifactsToProcess, artifactEntry{
+						currentPath:  path,
+						relativePath: relPath,
+					})
 				}
 				return nil
 			})
