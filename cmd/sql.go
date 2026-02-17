@@ -28,7 +28,11 @@ func cmdSQL(cmd *cobra.Command, args []string) {
 	if err != nil {
 		log.Fatalf("Searching $PATH for DuckDB CLI (%q, from --duckdb-cli): %v", flagDuckdbCli, err)
 	}
-	err = syscall.Exec(cliPath, []string{cliPath, duckDBPath}, os.Environ())
+	cliArgs := []string{cliPath, duckDBPath}
+	if len(args) > 0 {
+		cliArgs = append(cliArgs, args[0])
+	}
+	err = syscall.Exec(cliPath, cliArgs, os.Environ())
 	if err != nil {
 		log.Fatalf("exec()ing DuckDB CLI: %v", err)
 	}
@@ -38,12 +42,13 @@ func cmdSQL(cmd *cobra.Command, args []string) {
 
 // sqlCmd represents the sql command
 var sqlCmd = &cobra.Command{
-	Use:   "sql",
+	Use:   "sql [sql_command]",
 	Short: "Drop into a DuckDB SQL prompt.",
 	Long: `Creates a DuckDB database and then uses the DuckDB CLI
 (https://duckdb.org/docs/stable/clients/cli/overview.html) to drop you into
 a SQL REPL where you can explore the Falba data.`,
-	Run: cmdSQL,
+	Args: cobra.MaximumNArgs(1),
+	Run:  cmdSQL,
 }
 
 func init() {
