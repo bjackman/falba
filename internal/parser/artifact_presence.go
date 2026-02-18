@@ -24,5 +24,5 @@ func (e *ArtifactPresenceExtractor) String() string {
 
 type ArtifactPresenceConfig struct {
 	BaseParserConfig
-	Result any `json:"result"`
+	Result any `json:"result":`
 }

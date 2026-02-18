@@ -46,7 +46,10 @@ var sqlCmd = &cobra.Command{
 	Short: "Drop into a DuckDB SQL prompt.",
 	Long: `Creates a DuckDB database and then uses the DuckDB CLI
 (https://duckdb.org/docs/stable/clients/cli/overview.html) to drop you into
-a SQL REPL where you can explore the Falba data.`,
+a SQL REPL where you can explore the Falba data.
+
+If an optional SQL command is provided, it will be executed and the command will
+exit immediately.`,
 	Args: cobra.MaximumNArgs(1),
 	Run:  cmdSQL,
 }
