@@ -43,7 +43,7 @@ func cmdSQL(cmd *cobra.Command, args []string) {
 // sqlCmd represents the sql command
 var sqlCmd = &cobra.Command{
 	Use:   "sql [sql_command]",
-	Short: "Drop into a DuckDB SQL prompt.",
+	Short: "Run some DuckDB SQL, or drop into a REPL",
 	Long: `Creates a DuckDB database and then uses the DuckDB CLI
 (https://duckdb.org/docs/stable/clients/cli/overview.html) to drop you into
 a SQL REPL where you can explore the Falba data.
