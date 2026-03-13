@@ -42,6 +42,10 @@ func (e *JSONPathExtractor) Extract(artifact *falba.Artifact) ([]falba.Value, er
 		return nil, fmt.Errorf("failed to evaluate JSONPath: %v", err)
 	}
 
+	return evalJSONPathResult(got, e.resultType, "JSONPath")
+}
+
+func evalJSONPathResult(got any, resultType falba.ValueType, name string) ([]falba.Value, error) {
 	var rawValues []any
 	switch got := got.(type) {
 	case []any:
@@ -53,7 +57,7 @@ func (e *JSONPathExtractor) Extract(artifact *falba.Artifact) ([]falba.Value, er
 	var result []falba.Value
 	for _, rawVal := range rawValues {
 		var val falba.Value
-		switch e.resultType {
+		switch resultType {
 		case falba.ValueInt:
 			// JSON doesn't have proper numeric types so we can't actually enforce
 			// that the value is an integer. Just squash it into one.
@@ -63,24 +67,24 @@ func (e *JSONPathExtractor) Extract(artifact *falba.Artifact) ([]falba.Value, er
 			case int:
 				val = &falba.IntValue{Value: int64(v)}
 			default:
-				return nil, fmt.Errorf("%w: JSONPath returned %T, wanted numeric", ErrParseFailure, rawVal)
+				return nil, fmt.Errorf("%w: %s returned %T, wanted numeric", ErrParseFailure, name, rawVal)
 			}
 		case falba.ValueString:
 			v, ok := rawVal.(string)
 			if !ok {
-				return nil, fmt.Errorf("%w: JSONPath returned %T, wanted string", ErrParseFailure, rawVal)
+				return nil, fmt.Errorf("%w: %s returned %T, wanted string", ErrParseFailure, name, rawVal)
 			}
 			val = &falba.StringValue{Value: v}
 		case falba.ValueFloat:
 			v, ok := rawVal.(float64)
 			if !ok {
-				return nil, fmt.Errorf("%w: JSONPath returned %T, wanted float64", ErrParseFailure, rawVal)
+				return nil, fmt.Errorf("%w: %s returned %T, wanted float64", ErrParseFailure, name, rawVal)
 			}
 			val = &falba.FloatValue{Value: v}
 		case falba.ValueBool:
 			v, ok := rawVal.(bool)
 			if !ok {
-				return nil, fmt.Errorf("%w: JSONPath returned %T, wanted bool", ErrParseFailure, rawVal)
+				return nil, fmt.Errorf("%w: %s returned %T, wanted bool", ErrParseFailure, name, rawVal)
 			}
 			val = &falba.BoolValue{Value: v}
 		default:
