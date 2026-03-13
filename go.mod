@@ -11,6 +11,7 @@ require (
 	github.com/marcboeker/go-duckdb v1.8.5
 	github.com/spf13/cobra v1.9.1
 	golang.org/x/text v0.22.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -26,6 +27,7 @@ require (
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
+	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 	golang.org/x/exp v0.0.0-20250128182459-e0ece0dbea4c // indirect

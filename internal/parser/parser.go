@@ -307,7 +307,7 @@ func FromConfig(rawConfig json.RawMessage, name string) (*Parser, error) {
 		decoder.DisallowUnknownFields()
 		var config JSONPPathConfig
 		if err := decoder.Decode(&config); err != nil {
-			return nil, fmt.Errorf("decoding single_metric parser config: %v", err)
+			return nil, fmt.Errorf("decoding jsonpath parser config: %v", err)
 		}
 		if err := config.ValidateFields(); err != nil {
 			return nil, fmt.Errorf("invalid %q parser config: %v", baseConfig.Type, err)
@@ -316,6 +316,21 @@ func FromConfig(rawConfig json.RawMessage, name string) (*Parser, error) {
 		extractor, err = NewJSONPathExtractor(config.JSONPath, target.ValueType)
 		if err != nil {
 			return nil, fmt.Errorf("setting up JSONPath extractor: %v", err)
+		}
+	case "jsonpath-yaml":
+		decoder := json.NewDecoder(strings.NewReader(string(rawConfig)))
+		decoder.DisallowUnknownFields()
+		var config YAMLPathConfig
+		if err := decoder.Decode(&config); err != nil {
+			return nil, fmt.Errorf("decoding jsonpath-yaml parser config: %v", err)
+		}
+		if err := config.ValidateFields(); err != nil {
+			return nil, fmt.Errorf("invalid %q parser config: %v", baseConfig.Type, err)
+		}
+		var err error
+		extractor, err = NewYAMLPathExtractor(config.JSONPath, target.ValueType)
+		if err != nil {
+			return nil, fmt.Errorf("setting up YAMLPath extractor: %v", err)
 		}
 	case "shellvar":
 		decoder := json.NewDecoder(strings.NewReader(string(rawConfig)))

@@ -748,6 +748,41 @@ func TestJSONPathParser(t *testing.T) {
 			t.Errorf("Expected error about missing 'jsonpath' field, got: %v", err)
 		}
 	})
+
+	t.Run("FromConfig jsonpath-yaml", func(t *testing.T) {
+		configJSON := `{
+			"type": "jsonpath-yaml",
+			"artifact_regexp": "\\.yaml$",
+			"jsonpath": "$.name",
+			"fact": {
+				"name": "entity_name",
+				"type": "string"
+			}
+		}`
+		p, err := parser.FromConfig([]byte(configJSON), "jsonpath_yaml_test_parser")
+		if err != nil {
+			t.Fatalf("FromConfig failed: %v", err)
+		}
+		if p.Name != "jsonpath_yaml_test_parser" || p.ArtifactRE.String() != "\\.yaml$" || p.Target.Name != "entity_name" {
+			t.Errorf("Parser fields mismatch")
+		}
+		_, ok := p.Extractor.(*parser.YAMLPathExtractor)
+		if !ok {
+			t.Fatalf("Extractor is not of type *YAMLPathExtractor, got %T", p.Extractor)
+		}
+	})
+
+	t.Run("FromConfig jsonpath-yaml missing jsonpath field", func(t *testing.T) {
+		configJSON := `{
+			"type": "jsonpath-yaml",
+			"artifact_regexp": "\\.yaml$",
+			"metric": { "name": "foo", "type": "string" }
+		}`
+		_, err := parser.FromConfig([]byte(configJSON), "test")
+		if err == nil || !strings.Contains(err.Error(), "missing/empty 'jsonpath' field") {
+			t.Errorf("Expected error about missing 'jsonpath' field, got: %v", err)
+		}
+	})
 }
 
 func TestReservedFactNamesRejected(t *testing.T) {
