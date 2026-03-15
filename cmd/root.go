@@ -18,7 +18,14 @@ var (
 func setupSQL() (*db.DB, *sql.DB, error) {
 	parsersPaths := []string{}
 	if path := os.Getenv("FALBA_PARSERS_PATH"); path != "" {
-		parsersPaths = strings.Split(path, ":")
+		for _, p := range strings.Split(path, ":") {
+			if p == "" {
+				continue
+			}
+			if _, err := os.Stat(p); err == nil {
+				parsersPaths = append(parsersPaths, p)
+			}
+		}
 	}
 
 	falbaDB, err := db.ReadDB(flagResultDB, parsersPaths)

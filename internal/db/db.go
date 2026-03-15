@@ -202,14 +202,8 @@ func loadParsers(rootDir string, parsersPaths []string) ([]*parser.Parser, error
 	configPaths := []string{}
 
 	for _, dir := range parsersPaths {
-		if dir == "" {
-			continue
-		}
 		entries, err := os.ReadDir(dir)
 		if err != nil {
-			if os.IsNotExist(err) {
-				continue
-			}
 			return nil, fmt.Errorf("reading directory from parsers path %v: %w", dir, err)
 		}
 		for _, entry := range entries {
