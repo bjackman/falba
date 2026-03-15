@@ -198,26 +198,23 @@ func parseParserConfig(configPath string) (*ParsersConfig, error) {
 	return &config, nil
 }
 
-func loadParsers(rootDir string) ([]*parser.Parser, error) {
+func loadParsers(rootDir string, parsersPaths []string) ([]*parser.Parser, error) {
 	configPaths := []string{}
 
-	if parsersPath := os.Getenv("FALBA_PARSERS_PATH"); parsersPath != "" {
-		dirs := strings.Split(parsersPath, ":")
-		for _, dir := range dirs {
-			if dir == "" {
+	for _, dir := range parsersPaths {
+		if dir == "" {
+			continue
+		}
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			if os.IsNotExist(err) {
 				continue
 			}
-			entries, err := os.ReadDir(dir)
-			if err != nil {
-				if os.IsNotExist(err) {
-					continue
-				}
-				return nil, fmt.Errorf("reading directory from FALBA_PARSERS_PATH %v: %w", dir, err)
-			}
-			for _, entry := range entries {
-				if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".json") {
-					configPaths = append(configPaths, filepath.Join(dir, entry.Name()))
-				}
+			return nil, fmt.Errorf("reading directory from parsers path %v: %w", dir, err)
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".json") {
+				configPaths = append(configPaths, filepath.Join(dir, entry.Name()))
 			}
 		}
 	}
@@ -258,8 +255,8 @@ func loadParsers(rootDir string) ([]*parser.Parser, error) {
 
 // Read all the results from a DB directory and parse all their facts and
 // metrics.
-func ReadDB(rootDir string) (*DB, error) {
-	parsers, err := loadParsers(rootDir)
+func ReadDB(rootDir string, parsersPaths []string) (*DB, error) {
+	parsers, err := loadParsers(rootDir, parsersPaths)
 	if err != nil {
 		return nil, err
 	}

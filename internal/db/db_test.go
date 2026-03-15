@@ -27,7 +27,7 @@ func resultsMap(t *testing.T, results []*falba.Result) map[string]*falba.Result 
 }
 
 func TestReadDB(t *testing.T) {
-	db, err := db.ReadDB("testdata/results")
+	db, err := db.ReadDB("testdata/results", nil)
 	if err != nil {
 		t.Fatalf("Failed to read DB: %v", err)
 	}
@@ -125,7 +125,7 @@ func TestReadDB_DuplicateFactInResult(t *testing.T) {
 		t.Fatalf("Failed to write file2.txt: %v", err)
 	}
 
-	_, err := db.ReadDB(tempDir)
+	_, err := db.ReadDB(tempDir, nil)
 	if err == nil {
 		t.Fatalf("Expected ReadDB to return an error for duplicate fact production, but got nil")
 	}
@@ -158,7 +158,7 @@ func TestReadDB_MissingArtifactsDir(t *testing.T) {
 	}
 	// No artifacts/ directory is created here
 
-	_, err := db.ReadDB(tempDir)
+	_, err := db.ReadDB(tempDir, nil)
 	if err == nil {
 		t.Fatalf("Expected ReadDB to return an error when artifacts/ dir is missing, but got nil")
 	}
@@ -179,7 +179,7 @@ func TestReadDB_UnknownFieldsInParsersFile(t *testing.T) {
 		t.Fatalf("Failed to write parsers.json: %v", err)
 	}
 
-	_, err := db.ReadDB(tempDir)
+	_, err := db.ReadDB(tempDir, nil)
 	if err == nil {
 		t.Fatalf("Expected ReadDB to return an error for unknown fields in parsers.json, but got nil")
 	}
@@ -196,7 +196,7 @@ func TestReadDB_InvalidJSONParsersFile(t *testing.T) {
 		t.Fatalf("Failed to write parsers.json: %v", err)
 	}
 
-	_, err := db.ReadDB(tempDir)
+	_, err := db.ReadDB(tempDir, nil)
 	if err == nil {
 		t.Fatalf("Expected ReadDB to return an error for invalid JSON, but got nil")
 	}
@@ -213,7 +213,7 @@ func TestReadDB_EmptyParsersMap(t *testing.T) {
 		t.Fatalf("Failed to write parsers.json: %v", err)
 	}
 
-	_, err := db.ReadDB(tempDir)
+	_, err := db.ReadDB(tempDir, nil)
 	if err == nil {
 		t.Fatalf("Expected ReadDB to return an error for empty parsers map, but got nil")
 	}
@@ -227,7 +227,7 @@ func TestReadDB_MissingParsersFile(t *testing.T) {
 	tempDir := t.TempDir()
 	// No parsers.json created
 
-	_, err := db.ReadDB(tempDir)
+	_, err := db.ReadDB(tempDir, nil)
 	if err == nil {
 		t.Fatalf("Expected ReadDB to return an error when parsers.json is missing, but got nil")
 	}
@@ -280,9 +280,7 @@ func TestReadDB_FALBAParsersPath(t *testing.T) {
 		t.Fatalf("Failed to write config2.json: %v", err)
 	}
 
-	// db root without parsers.json should be fine because FALBA_PARSERS_PATH contains valid ones
-	os.Setenv("FALBA_PARSERS_PATH", dir1+":"+dir2)
-	defer os.Unsetenv("FALBA_PARSERS_PATH")
+	// db root without parsers.json should be fine because parsers paths contains valid ones
 
 	// Create dummy result to avoid empty db
 	resultDir := filepath.Join(dbRoot, "test_result:123")
@@ -291,7 +289,7 @@ func TestReadDB_FALBAParsersPath(t *testing.T) {
 		t.Fatalf("Failed to create artifacts dir: %v", err)
 	}
 
-	dbInstance, err := db.ReadDB(dbRoot)
+	dbInstance, err := db.ReadDB(dbRoot, []string{dir1, dir2})
 	if err != nil {
 		t.Fatalf("Expected ReadDB to succeed, got error: %v", err)
 	}
@@ -347,10 +345,7 @@ func TestReadDB_FALBAParsersPath_Duplicate(t *testing.T) {
 		t.Fatalf("Failed to write db root parsers.json: %v", err)
 	}
 
-	os.Setenv("FALBA_PARSERS_PATH", dir1)
-	defer os.Unsetenv("FALBA_PARSERS_PATH")
-
-	_, err := db.ReadDB(dbRoot)
+	_, err := db.ReadDB(dbRoot, []string{dir1})
 	if err == nil {
 		t.Fatalf("Expected ReadDB to fail due to duplicate parser name, but got nil")
 	}
@@ -402,7 +397,7 @@ func TestReadDB_ConflictingTypes(t *testing.T) {
 		t.Fatalf("Failed to write dummy artifact raw_data.txt: %v", err)
 	}
 
-	_, err := db.ReadDB(tempDir)
+	_, err := db.ReadDB(tempDir, nil)
 	if err == nil {
 		t.Errorf("Expected ReadDB to return an error due to conflicting types, but got nil")
 	} else {
@@ -465,7 +460,7 @@ func TestReadDB_InvalidResultDirName(t *testing.T) {
 				t.Fatalf("Failed to create artifacts dir in %s: %v", resultDir, err)
 			}
 
-			_, err := db.ReadDB(tempDir)
+			_, err := db.ReadDB(tempDir, nil)
 			if err == nil {
 				t.Fatalf("Expected ReadDB to return an error for dir %s, but got nil", tc.dirName)
 			}

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/bjackman/falba/internal/db"
 	"github.com/spf13/cobra"
@@ -15,7 +16,12 @@ var (
 )
 
 func setupSQL() (*db.DB, *sql.DB, error) {
-	falbaDB, err := db.ReadDB(flagResultDB)
+	parsersPaths := []string{}
+	if path := os.Getenv("FALBA_PARSERS_PATH"); path != "" {
+		parsersPaths = strings.Split(path, ":")
+	}
+
+	falbaDB, err := db.ReadDB(flagResultDB, parsersPaths)
 	if err != nil {
 		return nil, nil, fmt.Errorf("opening Falba DB: %v", err)
 	}
