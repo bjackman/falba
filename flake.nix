@@ -28,7 +28,7 @@
           # Just falba itself.
           falba = pkgs.buildGoModule {
             name = "falba";
-            vendorHash = "sha256-2IB4q+euDe4vS69cFGS1e4hiDYXuONgoAaIaH8wMT/=";
+            vendorHash = "sha256-2IB4q+euDe4vS69cFGS1e4hiDYXuONgoAaIaH8wMT/I=";
             src = ./.;
             buildInputs = with pkgs; [
               arrow-cpp

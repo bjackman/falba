@@ -4,6 +4,10 @@ go 1.24
 
 toolchain go1.24.4
 
+// If you modify this, you also need to update the vendorHash in the Nix
+// packaging (just set it to an empty string, run `nix build`, then replace the
+// empty string with the value from the build error message).
+
 require (
 	github.com/PaesslerAG/jsonpath v0.1.1
 	github.com/google/go-cmp v0.7.0
