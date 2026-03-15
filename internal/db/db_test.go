@@ -231,8 +231,131 @@ func TestReadDB_MissingParsersFile(t *testing.T) {
 	if err == nil {
 		t.Fatalf("Expected ReadDB to return an error when parsers.json is missing, but got nil")
 	}
-	if !strings.Contains(err.Error(), "reading DB config from") || !strings.Contains(err.Error(), "parsers.json") {
-		t.Errorf("Expected error to mention missing parsers.json, got: %v", err)
+	if !strings.Contains(err.Error(), "no 'parsers' defined or could not find any parsers configuration") {
+		t.Errorf("Expected error to mention no 'parsers' defined, got: %v", err)
+	}
+}
+
+// This test was written by Google Jules.
+func TestReadDB_FALBAParsersPath(t *testing.T) {
+	tempDir := t.TempDir()
+
+	dir1 := filepath.Join(tempDir, "parsers1")
+	dir2 := filepath.Join(tempDir, "parsers2")
+	dbRoot := filepath.Join(tempDir, "db_root")
+
+	if err := os.MkdirAll(dir1, 0755); err != nil {
+		t.Fatalf("Failed to create parsers1 dir: %v", err)
+	}
+	if err := os.MkdirAll(dir2, 0755); err != nil {
+		t.Fatalf("Failed to create parsers2 dir: %v", err)
+	}
+	if err := os.MkdirAll(dbRoot, 0755); err != nil {
+		t.Fatalf("Failed to create db root dir: %v", err)
+	}
+
+	parser1Content := `{
+		"parsers": {
+			"parser_1": {
+				"type": "single_metric",
+				"artifact_regexp": "file1\\.txt",
+				"fact": {"name": "fact1", "type": "string"}
+			}
+		}
+	}`
+	if err := os.WriteFile(filepath.Join(dir1, "config1.json"), []byte(parser1Content), 0644); err != nil {
+		t.Fatalf("Failed to write config1.json: %v", err)
+	}
+
+	parser2Content := `{
+		"parsers": {
+			"parser_2": {
+				"type": "single_metric",
+				"artifact_regexp": "file2\\.txt",
+				"fact": {"name": "fact2", "type": "string"}
+			}
+		}
+	}`
+	if err := os.WriteFile(filepath.Join(dir2, "config2.json"), []byte(parser2Content), 0644); err != nil {
+		t.Fatalf("Failed to write config2.json: %v", err)
+	}
+
+	// db root without parsers.json should be fine because FALBA_PARSERS_PATH contains valid ones
+	os.Setenv("FALBA_PARSERS_PATH", dir1+":"+dir2)
+	defer os.Unsetenv("FALBA_PARSERS_PATH")
+
+	// Create dummy result to avoid empty db
+	resultDir := filepath.Join(dbRoot, "test_result:123")
+	artifactsDir := filepath.Join(resultDir, "artifacts")
+	if err := os.MkdirAll(artifactsDir, 0755); err != nil {
+		t.Fatalf("Failed to create artifacts dir: %v", err)
+	}
+
+	dbInstance, err := db.ReadDB(dbRoot)
+	if err != nil {
+		t.Fatalf("Expected ReadDB to succeed, got error: %v", err)
+	}
+
+	if len(dbInstance.FactTypes) != 2 {
+		t.Errorf("Expected 2 fact types from loaded parsers, got %d", len(dbInstance.FactTypes))
+	}
+	if _, ok := dbInstance.FactTypes["fact1"]; !ok {
+		t.Errorf("Expected fact1 type to be loaded")
+	}
+	if _, ok := dbInstance.FactTypes["fact2"]; !ok {
+		t.Errorf("Expected fact2 type to be loaded")
+	}
+}
+
+// This test was written by Google Jules.
+func TestReadDB_FALBAParsersPath_Duplicate(t *testing.T) {
+	tempDir := t.TempDir()
+
+	dir1 := filepath.Join(tempDir, "parsers1")
+	dbRoot := filepath.Join(tempDir, "db_root")
+
+	if err := os.MkdirAll(dir1, 0755); err != nil {
+		t.Fatalf("Failed to create parsers1 dir: %v", err)
+	}
+	if err := os.MkdirAll(dbRoot, 0755); err != nil {
+		t.Fatalf("Failed to create db root dir: %v", err)
+	}
+
+	parser1Content := `{
+		"parsers": {
+			"parser_1": {
+				"type": "single_metric",
+				"artifact_regexp": "file1\\.txt",
+				"fact": {"name": "fact1", "type": "string"}
+			}
+		}
+	}`
+	if err := os.WriteFile(filepath.Join(dir1, "config1.json"), []byte(parser1Content), 0644); err != nil {
+		t.Fatalf("Failed to write config1.json: %v", err)
+	}
+
+	dbParserContent := `{
+		"parsers": {
+			"parser_1": {
+				"type": "single_metric",
+				"artifact_regexp": "file2\\.txt",
+				"fact": {"name": "fact2", "type": "string"}
+			}
+		}
+	}`
+	if err := os.WriteFile(filepath.Join(dbRoot, "parsers.json"), []byte(dbParserContent), 0644); err != nil {
+		t.Fatalf("Failed to write db root parsers.json: %v", err)
+	}
+
+	os.Setenv("FALBA_PARSERS_PATH", dir1)
+	defer os.Unsetenv("FALBA_PARSERS_PATH")
+
+	_, err := db.ReadDB(dbRoot)
+	if err == nil {
+		t.Fatalf("Expected ReadDB to fail due to duplicate parser name, but got nil")
+	}
+	if !strings.Contains(err.Error(), "duplicate parser name \"parser_1\"") {
+		t.Errorf("Expected duplicate parser error, got: %v", err)
 	}
 }
 

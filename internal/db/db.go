@@ -182,7 +182,7 @@ type ParsersConfig struct {
 	Parsers map[string]json.RawMessage `json:"parsers"`
 }
 
-func parseParserConfig(configPath string) ([]*parser.Parser, error) {
+func parseParserConfig(configPath string) (*ParsersConfig, error) {
 	configContent, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("reading DB config from %v: %w", configPath, err)
@@ -193,10 +193,57 @@ func parseParserConfig(configPath string) ([]*parser.Parser, error) {
 
 	var config ParsersConfig
 	if err := decoder.Decode(&config); err != nil {
-		return nil, fmt.Errorf("decoding DB config: %w", err)
+		return nil, fmt.Errorf("decoding DB config from %v: %w", configPath, err)
 	}
+	return &config, nil
+}
+
+func loadParsers(rootDir string) ([]*parser.Parser, error) {
+	configPaths := []string{}
+
+	if parsersPath := os.Getenv("FALBA_PARSERS_PATH"); parsersPath != "" {
+		dirs := strings.Split(parsersPath, ":")
+		for _, dir := range dirs {
+			if dir == "" {
+				continue
+			}
+			entries, err := os.ReadDir(dir)
+			if err != nil {
+				if os.IsNotExist(err) {
+					continue
+				}
+				return nil, fmt.Errorf("reading directory from FALBA_PARSERS_PATH %v: %w", dir, err)
+			}
+			for _, entry := range entries {
+				if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".json") {
+					configPaths = append(configPaths, filepath.Join(dir, entry.Name()))
+				}
+			}
+		}
+	}
+
+	dbParsersPath := filepath.Join(rootDir, "parsers.json")
+	if _, err := os.Stat(dbParsersPath); err == nil {
+		configPaths = append(configPaths, dbParsersPath)
+	}
+
+	mergedParsers := make(map[string]json.RawMessage)
+
+	for _, configPath := range configPaths {
+		config, err := parseParserConfig(configPath)
+		if err != nil {
+			return nil, err
+		}
+		for name, parserConfig := range config.Parsers {
+			if _, exists := mergedParsers[name]; exists {
+				return nil, fmt.Errorf("duplicate parser name %q found in %v", name, configPath)
+			}
+			mergedParsers[name] = parserConfig
+		}
+	}
+
 	var parsers []*parser.Parser
-	for name, parserConfig := range config.Parsers {
+	for name, parserConfig := range mergedParsers {
 		parser, err := parser.FromConfig(parserConfig, name)
 		if err != nil {
 			return nil, fmt.Errorf("configuring parser %q: %w", name, err)
@@ -204,7 +251,7 @@ func parseParserConfig(configPath string) ([]*parser.Parser, error) {
 		parsers = append(parsers, parser)
 	}
 	if len(parsers) == 0 {
-		return nil, fmt.Errorf("no 'parsers' defined")
+		return nil, fmt.Errorf("no 'parsers' defined or could not find any parsers configuration")
 	}
 	return parsers, nil
 }
@@ -212,7 +259,7 @@ func parseParserConfig(configPath string) ([]*parser.Parser, error) {
 // Read all the results from a DB directory and parse all their facts and
 // metrics.
 func ReadDB(rootDir string) (*DB, error) {
-	parsers, err := parseParserConfig(filepath.Join(rootDir, "parsers.json"))
+	parsers, err := loadParsers(rootDir)
 	if err != nil {
 		return nil, err
 	}
