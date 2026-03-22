@@ -3,7 +3,9 @@ package cmd
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"os"
+	"strings"
 
 	"github.com/bjackman/falba/internal/db"
 	"github.com/spf13/cobra"
@@ -14,8 +16,27 @@ var (
 	duckDBPath   string = "falba.duckdb"
 )
 
+func getParsersPaths() []string {
+	parsersPaths := []string{}
+	if path := os.Getenv("FALBA_PARSERS_PATH"); path != "" {
+		for _, p := range strings.Split(path, ":") {
+			if p == "" {
+				continue
+			}
+			if _, err := os.Stat(p); err == nil {
+				parsersPaths = append(parsersPaths, p)
+			} else if !os.IsNotExist(err) {
+				log.Printf("Warning: ignoring parsers path %q: %v", p, err)
+			}
+		}
+	}
+	return parsersPaths
+}
+
 func setupSQL() (*db.DB, *sql.DB, error) {
-	falbaDB, err := db.ReadDB(flagResultDB)
+	parsersPaths := getParsersPaths()
+
+	falbaDB, err := db.ReadDB(flagResultDB, parsersPaths)
 	if err != nil {
 		return nil, nil, fmt.Errorf("opening Falba DB: %v", err)
 	}

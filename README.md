@@ -49,7 +49,11 @@ A **Metric** is an output measured during the test. Unlike Facts, a Metric can h
 A Falba database is simply a directory on your filesystem. You can start with an empty directory.
 
 ### Configuring Parsers
-To tell Falba how to interpret your artifacts, create a `parsers.json` file in the root of your database directory. This file defines which files to look at and what data to extract.
+To tell Falba how to interpret your artifacts, you can provide configuration files that define which files to look at and what data to extract.
+
+By default, Falba looks for a `parsers.json` file in the root of your database directory. Alternatively, or in addition, you can set the `FALBA_PARSERS_PATH` environment variable. This should be a `:`-separated list of directories. Falba will load and merge all `.json` files found within these directories, as well as the database's own `parsers.json` (if it exists).
+
+If a parser with the same name is defined in multiple files, Falba will return an error.
 
 Example `parsers.json`:
 
