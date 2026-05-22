@@ -69,7 +69,7 @@ func feedJSONToStmt(sqlDB *sql.DB, query string, obj any) error {
 // Insert a 'results' and a 'metrics' table into the SQL database, which
 // probably only works for DuckDB.
 func (d *DB) InsertIntoDuckDB(sqlDB *sql.DB) error {
-	var resultsRows []map[string]any
+	resultsRows := []map[string]any{}
 	for _, r := range d.Results {
 		resultsRows = append(resultsRows, r.ForResultsTable())
 	}
@@ -78,7 +78,7 @@ func (d *DB) InsertIntoDuckDB(sqlDB *sql.DB) error {
 		return fmt.Errorf("inserting results JSON into SQL DB: %w", err)
 	}
 
-	var metricsRows []map[string]any
+	metricsRows := []map[string]any{}
 	for _, r := range d.Results {
 		metricsRows = append(metricsRows, r.ForMetricsTable()...)
 	}
