@@ -354,6 +354,42 @@ func TestReadDB_FALBAParsersPath_Duplicate(t *testing.T) {
 	}
 }
 
+func TestReadDB_FALBAParsersPath_Duplicate_Identical(t *testing.T) {
+	tempDir := t.TempDir()
+
+	dir1 := filepath.Join(tempDir, "parsers1")
+	dbRoot := filepath.Join(tempDir, "db_root")
+
+	if err := os.MkdirAll(dir1, 0755); err != nil {
+		t.Fatalf("Failed to create parsers1 dir: %v", err)
+	}
+	if err := os.MkdirAll(dbRoot, 0755); err != nil {
+		t.Fatalf("Failed to create db root dir: %v", err)
+	}
+
+	parserContent := `{
+		"parsers": {
+			"parser_1": {
+				"type": "single_metric",
+				"artifact_regexp": "file1\\.txt",
+				"fact": {"name": "fact1", "type": "string"}
+			}
+		}
+	}`
+	if err := os.WriteFile(filepath.Join(dir1, "config1.json"), []byte(parserContent), 0644); err != nil {
+		t.Fatalf("Failed to write config1.json: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(dbRoot, "parsers.json"), []byte(parserContent), 0644); err != nil {
+		t.Fatalf("Failed to write db root parsers.json: %v", err)
+	}
+
+	_, err := db.ReadDB(dbRoot, []string{dir1})
+	if err != nil {
+		t.Fatalf("Expected ReadDB to succeed on identical duplicate parser name, but got error: %v", err)
+	}
+}
+
 // This test was written by Google Jules.
 func TestReadDB_ConflictingTypes(t *testing.T) {
 	tempDir := t.TempDir()

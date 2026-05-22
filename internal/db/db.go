@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 
 	"github.com/bjackman/falba/internal/falba"
@@ -226,8 +227,18 @@ func loadParsers(rootDir string, parsersPaths []string) ([]*parser.Parser, error
 			return nil, err
 		}
 		for name, parserConfig := range config.Parsers {
-			if _, exists := mergedParsers[name]; exists {
-				return nil, fmt.Errorf("duplicate parser name %q found in %v", name, configPath)
+			if existingConfig, exists := mergedParsers[name]; exists {
+				var val1, val2 any
+				if err := json.Unmarshal(existingConfig, &val1); err != nil {
+					return nil, fmt.Errorf("unmarshalling existing parser config for %q: %w", name, err)
+				}
+				if err := json.Unmarshal(parserConfig, &val2); err != nil {
+					return nil, fmt.Errorf("unmarshalling new parser config for %q: %w", name, err)
+				}
+				if !reflect.DeepEqual(val1, val2) {
+					return nil, fmt.Errorf("duplicate parser name %q found in %v with different configuration", name, configPath)
+				}
+				continue
 			}
 			mergedParsers[name] = parserConfig
 		}
