@@ -46,7 +46,7 @@ A **Metric** is an output measured during the test. Unlike Facts, a Metric can h
 ## Usage
 
 ### Creating a Database
-A Falba database is simply a directory on your filesystem. You can start with an empty directory.
+A Falba database is simply a directory on your filesystem. By default, Falba uses `./.falba` in the current working directory. You can start with an empty directory.
 
 ### Configuring Parsers
 To tell Falba how to interpret your artifacts, you can provide configuration files that define which files to look at and what data to extract.
@@ -90,10 +90,10 @@ This configuration tells Falba to:
 To add results to your database, use the `falba import` command. You need to specify a **test name** and the **paths to your artifacts**.
 
 ```bash
-falba import --test-name "my-benchmark" ./results/run-1/
+falba import --test-name "my-benchmark" ./test-runs/run-1/
 ```
 
 This command will:
-1.  Read the artifacts from `./results/run-1/`.
+1.  Read the artifacts from `./test-runs/run-1/`.
 2.  Calculate a **Result ID** based on the content of these artifacts.
 3.  Store the artifacts in the database under `$DB_ROOT/my-benchmark:$RESULT_ID/artifacts/`.
