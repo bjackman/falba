@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"cmp"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"maps"
@@ -16,6 +17,8 @@ import (
 	"github.com/bjackman/falba/internal/falba"
 	"github.com/marcboeker/go-duckdb"
 )
+
+var ErrFactNotDeterminant = errors.New("fact not a determinant")
 
 // Prepared statements aren't flexible enough so we are just gonna be
 // vulnerable to SQL injection here.
@@ -68,16 +71,24 @@ var checkFuncDepTemplate = template.Must(
 		-- then because we don't know the type of the column we need to also
 		-- cast to string so that all the rows have the same type for a given
 		-- column.
-		HAVING COUNT(DISTINCT test_name || '-' ||
-			{{ range $i, $fact := .OtherFacts -}}
-				{{- if $i -}} || {{ end -}}
-				IFNULL(CAST({{$fact}} AS VARCHAR), 'NULL')
+		HAVING COUNT(DISTINCT test_name
+			{{- if .OtherFacts -}}
+				|| '-' ||
+				{{- range $i, $fact := .OtherFacts -}}
+					{{- if $i -}} || {{ end -}}
+					IFNULL(CAST({{$fact}} AS VARCHAR), 'NULL')
+				{{- end -}}
 			{{- end -}}
 		) > 1
 		-- Just need a single example, don't care which.
 		LIMIT 1
 	)
-	SELECT {{ .ExperimentFact }}, test_name, struct_pack({{ join .OtherFacts ", " }})
+	SELECT {{ .ExperimentFact }}, test_name,
+		{{- if .OtherFacts -}}
+			struct_pack({{ join .OtherFacts ", " }})
+		{{- else -}}
+			struct_pack(dummy := 'dummy')
+		{{- end -}}
 	FROM filtered_results JOIN WithMultipleSubgroups USING ({{ .ExperimentFact }})
 `))
 
@@ -103,9 +114,12 @@ func (g *checkFuncDepTemplateArgs) Execute() (string, error) {
 // (since the exact meanings of facts and metrics are assumed to differ between
 // tests) but not the result ID (since that's basically just an arbitrary
 // grouping of data).
-func checkFunctionalDependency(sqlDB *sql.DB, falbaDB *db.DB, experimentFact string) error {
+func checkFunctionalDependency(sqlDB *sql.DB, falbaDB *db.DB, experimentFact string, ignoreFacts []string) error {
 	facts := maps.Clone(falbaDB.FactTypes)
 	delete(facts, experimentFact)
+	for _, f := range ignoreFacts {
+		delete(facts, f)
+	}
 	t := checkFuncDepTemplateArgs{
 		ExperimentFact: experimentFact,
 		OtherFacts:     slices.Collect(maps.Keys(facts)),
@@ -140,7 +154,7 @@ func checkFunctionalDependency(sqlDB *sql.DB, falbaDB *db.DB, experimentFact str
 	if !processedAnyRows {
 		return nil
 	}
-	return fmt.Errorf("fact not a determinant")
+	return ErrFactNotDeterminant
 }
 
 var groupByTemplate = template.Must(template.New("group-by").Parse(`
@@ -293,12 +307,12 @@ type MetricGroup struct {
 // the map key should probably be a falba.Value but for now it seems like just
 // squashing it into a string is harmless enough. The filterExpression is
 // applied across the whole database before any analysis.
-func GroupByFact(sqlDB *sql.DB, falbaDB *db.DB, experimentFact string, metric string, filterExpression string, histWidth int) (map[string]*MetricGroup, error) {
+func GroupByFact(sqlDB *sql.DB, falbaDB *db.DB, experimentFact string, metric string, filterExpression string, histWidth int, ignoreFacts []string) (map[string]*MetricGroup, error) {
 	if err := createFilteredResults(sqlDB, filterExpression); err != nil {
 		return nil, fmt.Errorf("filtering results: %w", err)
 	}
 
-	if err := checkFunctionalDependency(sqlDB, falbaDB, experimentFact); err != nil {
+	if err := checkFunctionalDependency(sqlDB, falbaDB, experimentFact, ignoreFacts); err != nil {
 		return nil, fmt.Errorf("checking functional dependency: %w", err)
 	}
 

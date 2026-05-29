@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"maps"
@@ -18,10 +19,11 @@ import (
 )
 
 var (
-	cmpFlagMetric    string
-	cmpFlagFact      string
-	cmpFlagFilter    string
-	cmpFlagHistWidth int
+	cmpFlagMetric      string
+	cmpFlagFact        string
+	cmpFlagFilter      string
+	cmpFlagHistWidth   int
+	cmpFlagIgnoreFacts []string
 )
 
 var printer *message.Printer = message.NewPrinter(language.English)
@@ -126,8 +128,11 @@ func cmdCmp(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("no fact %q (have: %v)", cmpFlagFact, slices.Collect(maps.Keys(falbaDB.FactTypes)))
 	}
 
-	groups, err := anal.GroupByFact(sqlDB, falbaDB, cmpFlagFact, cmpFlagMetric, cmpFlagFilter, cmpFlagHistWidth)
+	groups, err := anal.GroupByFact(sqlDB, falbaDB, cmpFlagFact, cmpFlagMetric, cmpFlagFilter, cmpFlagHistWidth, cmpFlagIgnoreFacts)
 	if err != nil {
+		if errors.Is(err, anal.ErrFactNotDeterminant) {
+			return fmt.Errorf("grouping by fact: %v\n\nTip: You can use the --ignore-fact flag to bypass this check for facts you don't care about.", err)
+		}
 		return fmt.Errorf("grouping by fact: %v", err)
 	}
 
@@ -229,4 +234,5 @@ func init() {
 	cmpCmd.MarkFlagRequired("fact")
 	cmpCmd.Flags().StringVarP(&cmpFlagFilter, "filter", "w", "TRUE", "Filter for results. SQL boolean expression.")
 	cmpCmd.Flags().IntVar(&cmpFlagHistWidth, "hist-width", 20, "Width of the histogram in characters. Set 0 to disable histogram.")
+	cmpCmd.Flags().StringSliceVar(&cmpFlagIgnoreFacts, "ignore-fact", nil, "Facts to ignore (bypass functional dependency check)")
 }
