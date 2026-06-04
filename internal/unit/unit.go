@@ -16,14 +16,14 @@ type Unit struct {
 
 var (
 	registry = map[string]Unit{
-		"ns":   {Name: "nanosecond", ShortName: "ns", Family: "time"},
-		"us":   {Name: "microsecond", ShortName: "us", Family: "time"},
-		"ms":   {Name: "millisecond", ShortName: "ms", Family: "time"},
-		"s":    {Name: "second", ShortName: "s", Family: "time"},
-		"B":    {Name: "byte", ShortName: "B", Family: "data"},
-		"KiB":  {Name: "kibibyte", ShortName: "KiB", Family: "data"},
-		"MiB":  {Name: "mebibyte", ShortName: "MiB", Family: "data"},
-		"GiB":  {Name: "gibibyte", ShortName: "GiB", Family: "data"},
+		"ns":  {Name: "nanosecond", ShortName: "ns", Family: "time"},
+		"us":  {Name: "microsecond", ShortName: "us", Family: "time"},
+		"ms":  {Name: "millisecond", ShortName: "ms", Family: "time"},
+		"s":   {Name: "second", ShortName: "s", Family: "time"},
+		"B":   {Name: "byte", ShortName: "B", Family: "data"},
+		"KiB": {Name: "kibibyte", ShortName: "KiB", Family: "data"},
+		"MiB": {Name: "mebibyte", ShortName: "MiB", Family: "data"},
+		"GiB": {Name: "gibibyte", ShortName: "GiB", Family: "data"},
 	}
 )
 
