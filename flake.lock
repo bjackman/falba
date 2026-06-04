@@ -68,11 +68,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1768225043,
-        "narHash": "sha256-YQF4P22vEVt59Mf1U7s6IKOI+B+HfUW2WWEHessAtbk=",
+        "lastModified": 1773399761,
+        "narHash": "sha256-XTfderP/fpprRCYjJ/K905HB6hLGVojZuermfj840aY=",
         "owner": "bjackman",
         "repo": "limmat",
-        "rev": "0183e96bb7ae7e6f91a121a2894117c665380edb",
+        "rev": "c1f6ed5c56473a55d6fd34314bc658c617e03ba5",
         "type": "github"
       },
       "original": {
@@ -105,11 +105,11 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1768323494,
-        "narHash": "sha256-yBXJLE6WCtrGo7LKiB6NOt6nisBEEkguC/lq/rP3zRQ=",
+        "lastModified": 1779796641,
+        "narHash": "sha256-ZsIrKmhp4vbBXoXXmR/tBXA/UCsAQiJL9vsgZEduhVY=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "2c3e5ec5df46d3aeee2a1da0bfedd74e21f4bf3a",
+        "rev": "25f538306313eae3927264466c70d7001dcea1df",
         "type": "github"
       },
       "original": {
