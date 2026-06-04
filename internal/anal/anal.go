@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"maps"
+	"math/big"
 	"slices"
 	"strings"
 	"text/template"
@@ -241,6 +242,9 @@ func (h *Histogram) Scan(v any) error {
 			// something in the SQL to make this more accurate, I dunno floats
 			// are tricky.
 			boundary = float64(k)
+		case *big.Int:
+			f := new(big.Float).SetInt(k)
+			boundary, _ = f.Float64()
 		default:
 			return fmt.Errorf("invalid type %T for histogram map key, expected float64", k)
 		}
