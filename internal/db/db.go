@@ -72,7 +72,16 @@ func feedJSONToStmt(sqlDB *sql.DB, query string, obj any) error {
 func (d *DB) InsertIntoDuckDB(sqlDB *sql.DB) error {
 	resultsRows := []map[string]any{}
 	for _, r := range d.Results {
-		resultsRows = append(resultsRows, r.ForResultsTable())
+		// Ensure that there is a column for every defined fact, this keeps
+		// queries simple. Is this a dumb hack? I'm not sure, it might be or it
+		// might be sensible.
+		row := r.ForResultsTable()
+		for factName := range d.FactTypes {
+			if _, ok := row[factName]; !ok {
+				row[factName] = nil
+			}
+		}
+		resultsRows = append(resultsRows, row)
 	}
 	err := feedJSONToStmt(sqlDB, createResultsSQL, resultsRows)
 	if err != nil {

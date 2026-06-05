@@ -551,6 +551,7 @@ func TestInsertIntoDuckDB(t *testing.T) {
 			"fact3":           falba.ValueString, // This is a string fact that happens to be "true"
 			"fact_bool_true":  falba.ValueBool,
 			"fact_bool_false": falba.ValueBool,
+			"missing_fact":    falba.ValueString,
 		},
 		MetricTypes: map[string]falba.MetricType{
 			"metric1":           {Type: falba.ValueFloat},
@@ -601,7 +602,7 @@ func TestInsertIntoDuckDB(t *testing.T) {
 	}
 
 	// Test fact columns
-	factRows, err := sqlDB.Query("SELECT test_name, fact1, fact2, fact3, fact_bool_true, fact_bool_false FROM results ORDER BY test_name")
+	factRows, err := sqlDB.Query("SELECT test_name, fact1, fact2, fact3, fact_bool_true, fact_bool_false, missing_fact FROM results ORDER BY test_name")
 	if err != nil {
 		t.Fatalf("Failed to query fact results: %v", err)
 	}
@@ -614,6 +615,7 @@ func TestInsertIntoDuckDB(t *testing.T) {
 		Fact3         sql.NullString
 		FactBoolTrue  sql.NullBool
 		FactBoolFalse sql.NullBool
+		MissingFact   sql.NullString
 	}
 	for factRows.Next() {
 		var r struct {
@@ -623,8 +625,9 @@ func TestInsertIntoDuckDB(t *testing.T) {
 			Fact3         sql.NullString
 			FactBoolTrue  sql.NullBool
 			FactBoolFalse sql.NullBool
+			MissingFact   sql.NullString
 		}
-		if err := factRows.Scan(&r.TestName, &r.Fact1, &r.Fact2, &r.Fact3, &r.FactBoolTrue, &r.FactBoolFalse); err != nil {
+		if err := factRows.Scan(&r.TestName, &r.Fact1, &r.Fact2, &r.Fact3, &r.FactBoolTrue, &r.FactBoolFalse, &r.MissingFact); err != nil {
 			t.Fatalf("Failed to scan fact row: %v", err)
 		}
 		gotFactResults = append(gotFactResults, r)
@@ -637,6 +640,7 @@ func TestInsertIntoDuckDB(t *testing.T) {
 		Fact3         sql.NullString
 		FactBoolTrue  sql.NullBool
 		FactBoolFalse sql.NullBool
+		MissingFact   sql.NullString
 	}{
 		{"test1",
 			sql.NullString{Valid: true, String: "value1"},
@@ -644,6 +648,7 @@ func TestInsertIntoDuckDB(t *testing.T) {
 			sql.NullString{},
 			sql.NullBool{Valid: true, Bool: true},
 			sql.NullBool{},
+			sql.NullString{},
 		},
 		{"test2",
 			sql.NullString{},
@@ -651,6 +656,7 @@ func TestInsertIntoDuckDB(t *testing.T) {
 			sql.NullString{Valid: true, String: "true"},
 			sql.NullBool{},
 			sql.NullBool{Valid: true, Bool: false},
+			sql.NullString{},
 		},
 	}
 
