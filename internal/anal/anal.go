@@ -137,7 +137,7 @@ func checkFunctionalDependency(sqlDB *sql.DB, falbaDB *db.DB, experimentFact str
 	defer rows.Close()
 	processedAnyRows := false
 	for rows.Next() {
-		var factStr string
+		var factStr sql.NullString
 		var testName string
 		var otherFactsStruct map[string]any
 		if err := rows.Scan(&factStr, &testName, &otherFactsStruct); err != nil {
@@ -147,7 +147,11 @@ func checkFunctionalDependency(sqlDB *sql.DB, falbaDB *db.DB, experimentFact str
 		// Hack to print header after we've already got the example problematic
 		// fact value from the first row.
 		if !processedAnyRows {
-			log.Printf("Multiple subgroups for %s = %s:\n", experimentFact, factStr)
+			factVal := "<NULL>"
+			if factStr.Valid {
+				factVal = factStr.String
+			}
+			log.Printf("Multiple subgroups for %s = %s:\n", experimentFact, factVal)
 			processedAnyRows = true
 		}
 		log.Printf("\ttest_name = %s non-experiment facts: %s\n", testName, otherFactsStruct)
@@ -350,7 +354,7 @@ func GroupByFact(sqlDB *sql.DB, falbaDB *db.DB, experimentFact string, metric st
 		// Rows.Scan stringifies stuff so for now it seems  we can get away with
 		// just using string vars here. I think the next step up would be to
 		// implement sql.Scanner for falba.Value.
-		var factStr string
+		var factStr sql.NullString
 		var groupMean float64
 		var groupMax float64
 		var groupMin float64
@@ -358,7 +362,11 @@ func GroupByFact(sqlDB *sql.DB, falbaDB *db.DB, experimentFact string, metric st
 		if err := rows.Scan(&testName, &factStr, &groupMean, &histogram, &groupMin, &groupMax); err != nil {
 			return nil, fmt.Errorf("scanning group-by rows: %v", err)
 		}
-		ret[factStr] = &MetricGroup{
+		key := "<NULL>"
+		if factStr.Valid {
+			key = factStr.String
+		}
+		ret[key] = &MetricGroup{
 			TestName:  testName,
 			Mean:      groupMean,
 			Max:       groupMax,
