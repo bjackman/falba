@@ -292,8 +292,24 @@ func (h *Histogram) PlotUnicode() string {
 	blockElems := []rune{' ', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
 	var b strings.Builder
 	for _, bin := range h.bins {
-		level := int(bin.size/h.maxSize) * (len(blockElems) - 1)
-		b.WriteRune(blockElems[level])
+		if bin.size == 0 {
+			b.WriteRune(' ')
+			continue
+		}
+		var level int
+		if h.maxSize > 0 {
+			fraction := float64(bin.size) / float64(h.maxSize)
+			level = int(fraction * float64(len(blockElems)-1))
+		}
+		// If the bin is not empty, but the fraction is so small that it rounds
+		// down to level 0 (which is a space ' '), use a special character '_'
+		// to represent "small but nonzero" so that outliers remain visible
+		// and distinguishable from larger values.
+		if level == 0 && bin.size > 0 {
+			b.WriteRune('_')
+		} else {
+			b.WriteRune(blockElems[level])
+		}
 	}
 	return b.String()
 }
