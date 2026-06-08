@@ -155,8 +155,13 @@ func readResult(resultDir string, parsers []*parser.Parser) (*falba.Result, erro
 	// for duplicates.
 	factToParser := map[string]string{}
 
+	matchedParsers := make(map[*parser.Parser]bool)
+
 	for _, artifact := range artifacts {
 		for _, parzer := range parsers {
+			if parzer.ArtifactRE.MatchString(artifact.Name) {
+				matchedParsers[parzer] = true
+			}
 			result, err := parzer.Parse(artifact)
 			// Parse failures are non-fatal.
 			if errors.Is(err, parser.ErrParseFailure) {
@@ -177,6 +182,23 @@ func readResult(resultDir string, parsers []*parser.Parser) (*falba.Result, erro
 			}
 
 			metrics = append(metrics, result.Metrics...)
+		}
+	}
+
+	// Apply default values for parsers that didn't match any artifact.
+	for _, parzer := range parsers {
+		if !matchedParsers[parzer] && parzer.Default != nil {
+			// Only facts should have defaults, not metrics. (Should be enforced
+			// by config parser).
+			if parzer.Target.TargetType != parser.TargetFact {
+				log.Panicf("Parser %s has a default value but is not a fact parser.", parzer.Name)
+			}
+			name := parzer.Target.Name
+			if _, ok := facts[name]; ok {
+				return nil, fmt.Errorf("parser %s default value conflicted with already produced fact %q", parzer.Name, name)
+			}
+			factToParser[name] = parzer.Name
+			facts[name] = parzer.Default
 		}
 	}
 

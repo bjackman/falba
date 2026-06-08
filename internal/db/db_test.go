@@ -719,3 +719,54 @@ func TestInsertIntoDuckDB(t *testing.T) {
 		t.Errorf("Unexpected metrics (-want +got): %v", diff)
 	}
 }
+
+func TestReadDB_ParserDefaultValue(t *testing.T) {
+	tempDir := t.TempDir()
+	parsersFileContent := `{
+		"parsers": {
+			"parser_present": {
+				"type": "single_metric",
+				"artifact_regexp": "present\\.txt",
+				"fact": {"name": "fact_present", "type": "string"}
+			},
+			"parser_missing": {
+				"type": "single_metric",
+				"artifact_regexp": "missing\\.txt",
+				"fact": {"name": "fact_missing", "type": "string", "default": "default_value"}
+			}
+		}
+	}`
+	if err := os.WriteFile(filepath.Join(tempDir, "parsers.json"), []byte(parsersFileContent), 0644); err != nil {
+		t.Fatalf("Failed to write parsers.json: %v", err)
+	}
+
+	resultDir := filepath.Join(tempDir, "my_test:res123")
+	artifactsDir := filepath.Join(resultDir, "artifacts")
+	if err := os.MkdirAll(artifactsDir, 0755); err != nil {
+		t.Fatalf("Failed to create artifacts dir: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(artifactsDir, "present.txt"), []byte("present_content"), 0644); err != nil {
+		t.Fatalf("Failed to write present.txt: %v", err)
+	}
+	// missing.txt is NOT created
+
+	dbInstance, err := db.ReadDB(tempDir, nil)
+	if err != nil {
+		t.Fatalf("Failed to read DB: %v", err)
+	}
+
+	res, ok := dbInstance.Results["res123"]
+	if !ok {
+		t.Fatalf("Expected result 'res123' to be loaded")
+	}
+
+	wantFacts := map[string]falba.Value{
+		"fact_present": &falba.StringValue{Value: "present_content"},
+		"fact_missing": &falba.StringValue{Value: "default_value"},
+	}
+
+	if diff := cmp.Diff(wantFacts, res.Facts); diff != "" {
+		t.Errorf("Unexpected facts (-want +got):\n%s", diff)
+	}
+}

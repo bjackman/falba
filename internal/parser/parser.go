@@ -60,9 +60,11 @@ type Parser struct {
 	ArtifactRE *regexp.Regexp
 	Target     *ParserTarget
 	Extractor
+	// Must be nil if target is a metric.
+	Default falba.Value
 }
 
-func NewParser(name string, artifactPattern string, target *ParserTarget, extractor Extractor) (*Parser, error) {
+func NewParser(name string, artifactPattern string, target *ParserTarget, extractor Extractor, defaultValue falba.Value) (*Parser, error) {
 	artifactRE, err := regexp.Compile(artifactPattern)
 	if err != nil {
 		return nil, fmt.Errorf("compiling artifact regexp pattern %q: %v", artifactPattern, err)
@@ -73,6 +75,7 @@ func NewParser(name string, artifactPattern string, target *ParserTarget, extrac
 		ArtifactRE: artifactRE,
 		Target:     target,
 		Extractor:  extractor,
+		Default:    defaultValue,
 	}, nil
 }
 
@@ -171,8 +174,9 @@ type BaseParserConfig struct {
 		Unit string `json:"unit"`
 	} `json:"metric"`
 	Fact *struct {
-		Name string `json:"name"`
-		Type string `json:"type"`
+		Name    string  `json:"name"`
+		Type    string  `json:"type"`
+		Default *string `json:"default"`
 	} `json:"fact"`
 }
 
@@ -284,6 +288,15 @@ func FromConfig(rawConfig json.RawMessage, name string) (*Parser, error) {
 		return nil, fmt.Errorf("must specify 'fact.type' or 'value.type'")
 	}
 
+	var defaultValue falba.Value
+	if baseConfig.Fact != nil && baseConfig.Fact.Default != nil {
+		var err error
+		defaultValue, err = falba.ParseValue(*baseConfig.Fact.Default, target.ValueType)
+		if err != nil {
+			return nil, fmt.Errorf("parsing default value: %v", err)
+		}
+	}
+
 	var extractor Extractor
 
 	switch baseConfig.Type {
@@ -381,5 +394,5 @@ func FromConfig(rawConfig json.RawMessage, name string) (*Parser, error) {
 		return nil, fmt.Errorf("unknown parser type %q", baseConfig.Type)
 	}
 
-	return NewParser(name, baseConfig.ArtifactRegexp, &target, extractor)
+	return NewParser(name, baseConfig.ArtifactRegexp, &target, extractor, defaultValue)
 }

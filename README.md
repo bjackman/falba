@@ -55,6 +55,8 @@ By default, Falba looks for a `parsers.json` file in the root of your database d
 
 If a parser with the same name is defined in multiple files, Falba will return an error.
 
+Facts can have a default, this value will be used for results that don't have any artifacts matching the regexp.
+
 Example `parsers.json`:
 
 ```json
@@ -67,6 +69,15 @@ Example `parsers.json`:
             "fact": {
                 "name": "git_revision",
                 "type": "string"
+            }
+        },
+        "bungles": {
+            "type": "single_metric",
+            "artifact_regexp": "num_bungles.txt",
+            "fact": {
+                "name": "bungles",
+                "type": "int",
+                "default": 0
             }
         },
         "requests_per_second": {

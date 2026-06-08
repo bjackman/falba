@@ -144,7 +144,7 @@ func mustNewShellvarParser(t *testing.T, varName string, factName string, valueT
 		t.Fatalf("NewShellvarExtractor(%q, %v) failed: %v", varName, valueType, err)
 	}
 	// ArtifactRE is "." to match any artifact name for these tests
-	p, err := parser.NewParser("testShellvar", ".", &parser.ParserTarget{Name: factName, TargetType: parser.TargetFact, ValueType: valueType}, extractor)
+	p, err := parser.NewParser("testShellvar", ".", &parser.ParserTarget{Name: factName, TargetType: parser.TargetFact, ValueType: valueType}, extractor, nil)
 	if err != nil {
 		t.Fatalf("NewParser failed: %v", err)
 	}
@@ -511,7 +511,7 @@ func TestJSONPathParser(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewJSONPathExtractor(%q, %v) failed: %v", jsonPath, valueType, err)
 		}
-		p, err := parser.NewParser("testJSONPath", ".", &parser.ParserTarget{Name: targetName, TargetType: targetType, ValueType: valueType}, extractor)
+		p, err := parser.NewParser("testJSONPath", ".", &parser.ParserTarget{Name: targetName, TargetType: targetType, ValueType: valueType}, extractor, nil)
 		if err != nil {
 			t.Fatalf("NewParser failed: %v", err)
 		}
@@ -822,5 +822,24 @@ func TestReservedFactNamesRejected(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestParserFromConfig_MetricWithDefault(t *testing.T) {
+	configJSON := `{
+			"type": "single_metric",
+			"artifact_regexp": "metric.txt",
+			"metric": {
+				"name": "my_metric",
+				"type": "int",
+				"default": "10"
+			}
+		}`
+	_, err := parser.FromConfig([]byte(configJSON), "metric_with_default")
+	if err == nil {
+		t.Fatal("FromConfig expected error for metric with default, got nil")
+	}
+	if !strings.Contains(err.Error(), "unknown field \"default\"") {
+		t.Errorf("Expected error about unknown field 'default', got: %v", err)
 	}
 }
