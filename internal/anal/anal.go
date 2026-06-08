@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"iter"
 	"log"
 	"maps"
 	"math/big"
@@ -326,7 +327,7 @@ func GroupByFact(sqlDB *sql.DB, falbaDB *db.DB, experimentFact string, metric st
 
 	metricType, ok := falbaDB.MetricTypes[metric]
 	if !ok {
-		return nil, fmt.Errorf("no metric %q (have: %v)", metric, slices.Collect(maps.Keys(falbaDB.MetricTypes)))
+		return nil, fmt.Errorf("no metric %q\nAvailable metrics:\n%s", metric, ReadableList(maps.Keys(falbaDB.MetricTypes)))
 	}
 	if metricType.Type != falba.ValueInt && metricType.Type != falba.ValueFloat {
 		return nil, fmt.Errorf("sorry, only implemented for float and int metrics (%v is %v)",
@@ -375,4 +376,15 @@ func GroupByFact(sqlDB *sql.DB, falbaDB *db.DB, experimentFact string, metric st
 		}
 	}
 	return ret, nil
+}
+
+// ReadableList sorts the items from the iterator and returns them as a single string
+// where each item is on a new line, indented with a tab, and with a trailing newline.
+func ReadableList(seq iter.Seq[string]) string {
+	items := slices.Collect(seq)
+	slices.Sort(items)
+	if len(items) == 0 {
+		return ""
+	}
+	return "\t" + strings.Join(items, "\n\t") + "\n"
 }
