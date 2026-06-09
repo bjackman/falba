@@ -162,6 +162,41 @@ func (p *RegexpExtractor) String() string {
 	return fmt.Sprintf("RegexpExtractor{%v -> %v}", p.re, p.resultType)
 }
 
+type FactConfig struct {
+	Name    string      `json:"name"`
+	Type    string      `json:"type"`
+	Default falba.Value `json:"-"`
+}
+
+func (f *FactConfig) UnmarshalJSON(data []byte) error {
+	// Define a local alias to avoid infinite recursion.
+	// Alias inherits FactConfig's fields but NOT its methods (preventing UnmarshalJSON from calling itself).
+	type Alias FactConfig
+	aux := &struct {
+		// Delay parsing "default" by capturing it as raw JSON until we know the "type".
+		Default json.RawMessage `json:"default"`
+		*Alias
+	}{
+		Alias: (*Alias)(f),
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	if aux.Default != nil {
+		valueType, err := falba.ParseValueType(f.Type)
+		if err != nil {
+			return fmt.Errorf("parsing fact type %q: %v", f.Type, err)
+		}
+		val, err := falba.ParseValueFromJSONValue(aux.Default, valueType)
+		if err != nil {
+			return fmt.Errorf("parsing default value: %v", err)
+		}
+		f.Default = val
+	}
+	return nil
+}
+
 type BaseParserConfig struct {
 	Type string `json:"type"`
 	// Parse the artifact if its path (relative to the artifacts dir) matches
@@ -173,11 +208,7 @@ type BaseParserConfig struct {
 		Type string `json:"type"`
 		Unit string `json:"unit"`
 	} `json:"metric"`
-	Fact *struct {
-		Name    string  `json:"name"`
-		Type    string  `json:"type"`
-		Default *string `json:"default"`
-	} `json:"fact"`
+	Fact *FactConfig `json:"fact"`
 }
 
 type ShellvarParserConfig struct {
@@ -289,12 +320,8 @@ func FromConfig(rawConfig json.RawMessage, name string) (*Parser, error) {
 	}
 
 	var defaultValue falba.Value
-	if baseConfig.Fact != nil && baseConfig.Fact.Default != nil {
-		var err error
-		defaultValue, err = falba.ParseValue(*baseConfig.Fact.Default, target.ValueType)
-		if err != nil {
-			return nil, fmt.Errorf("parsing default value: %v", err)
-		}
+	if baseConfig.Fact != nil {
+		defaultValue = baseConfig.Fact.Default
 	}
 
 	var extractor Extractor

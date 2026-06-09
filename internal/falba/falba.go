@@ -2,6 +2,7 @@
 package falba
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"maps"
@@ -317,6 +318,39 @@ func ParseValue(s string, t ValueType) (Value, error) {
 		return &BoolValue{Value: b}, nil
 	default:
 		return nil, fmt.Errorf("invalid value type %v", t)
+	}
+}
+
+// ParseValueFromJSONValue parses a raw JSON value into a Value, enforcing
+// the expected ValueType. It does not perform automatic type conversions.
+func ParseValueFromJSONValue(raw json.RawMessage, t ValueType) (Value, error) {
+	switch t {
+	case ValueBool:
+		var b bool
+		if err := json.Unmarshal(raw, &b); err != nil {
+			return nil, fmt.Errorf("expected bool: %w", err)
+		}
+		return &BoolValue{Value: b}, nil
+	case ValueInt:
+		var i int64
+		if err := json.Unmarshal(raw, &i); err != nil {
+			return nil, fmt.Errorf("expected int: %w", err)
+		}
+		return &IntValue{Value: i}, nil
+	case ValueFloat:
+		var f float64
+		if err := json.Unmarshal(raw, &f); err != nil {
+			return nil, fmt.Errorf("expected float: %w", err)
+		}
+		return &FloatValue{Value: f}, nil
+	case ValueString:
+		var s string
+		if err := json.Unmarshal(raw, &s); err != nil {
+			return nil, fmt.Errorf("expected string: %w", err)
+		}
+		return &StringValue{Value: s}, nil
+	default:
+		return nil, fmt.Errorf("unknown type %v", t)
 	}
 }
 

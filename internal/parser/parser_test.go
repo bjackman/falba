@@ -2,6 +2,7 @@ package parser_test
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -841,5 +842,73 @@ func TestParserFromConfig_MetricWithDefault(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "unknown field \"default\"") {
 		t.Errorf("Expected error about unknown field 'default', got: %v", err)
+	}
+}
+
+func TestParserFromConfig_FactDefaults(t *testing.T) {
+	testCases := []struct {
+		name         string
+		factType     string
+		defaultValue string // JSON representation
+		wantValue    any    // Expected Go value in parser.Default
+		expectError  bool
+	}{
+		// Bool defaults
+		{name: "bool-bool-true", factType: "bool", defaultValue: `true`, wantValue: true},
+		{name: "bool-bool-false", factType: "bool", defaultValue: `false`, wantValue: false},
+		{name: "bool-string-true", factType: "bool", defaultValue: `"true"`, expectError: true},
+		{name: "bool-string-false", factType: "bool", defaultValue: `"false"`, expectError: true},
+		{name: "bool-invalid-type", factType: "bool", defaultValue: `42`, expectError: true},
+
+		// Int defaults
+		{name: "int-int", factType: "int", defaultValue: `42`, wantValue: int64(42)},
+		{name: "int-string", factType: "int", defaultValue: `"42"`, expectError: true},
+		{name: "int-invalid-type", factType: "int", defaultValue: `true`, expectError: true},
+		{name: "int-invalid-string", factType: "int", defaultValue: `"fortytwo"`, expectError: true},
+
+		// Float defaults
+		{name: "float-float", factType: "float", defaultValue: `3.14`, wantValue: 3.14},
+		{name: "float-string", factType: "float", defaultValue: `"3.14"`, expectError: true},
+		{name: "float-invalid-type", factType: "float", defaultValue: `true`, expectError: true},
+
+		// String defaults
+		{name: "string-string", factType: "string", defaultValue: `"hello"`, wantValue: "hello"},
+		{name: "string-invalid-type-bool", factType: "string", defaultValue: `true`, expectError: true},
+		{name: "string-invalid-type-int", factType: "string", defaultValue: `42`, expectError: true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			configJSON := fmt.Sprintf(`{
+				"type": "single_metric",
+				"artifact_regexp": "fact.txt",
+				"fact": {
+					"name": "my_fact",
+					"type": "%s",
+					"default": %s
+				}
+			}`, tc.factType, tc.defaultValue)
+
+			p, err := parser.FromConfig([]byte(configJSON), "test_parser")
+			if tc.expectError {
+				if err == nil {
+					t.Fatal("Expected error, got nil")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			if p.Default == nil {
+				t.Fatal("Expected default value to be set, got nil")
+			}
+
+			gotValue := falba.ValueValue(p.Default)
+			if !cmp.Equal(gotValue, tc.wantValue) {
+				t.Errorf("Unexpected default value: got %v (%T), want %v (%T)\nDiff:\n%s", gotValue, gotValue, tc.wantValue, tc.wantValue, cmp.Diff(tc.wantValue, gotValue))
+			}
+		})
 	}
 }
